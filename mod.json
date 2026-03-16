@@ -1,10 +1,7 @@
 {
-	"geode": "5.2.0",
+	"geode": "5.3.0",
 	"gd": {
-		"win": "2.2081",
-		"android": "2.2081",
-		"mac": "2.2081",
-		"ios": "2.2081"
+		"win": "2.2081"
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDriveBackup",
@@ -13,5 +10,28 @@
 	"description": "",
 	"dependencies": {
 		"geode.node-ids": ">=v1.20.0"
+	},
+	"resources": {
+		"sprites": [
+			"resources/size.png",
+			"resources/title.png",
+			"resources/icon.png"
+		]
+	},
+	"settings": {
+		"slot-count": {
+			"type": "int",
+			"name": "Save slots count",
+			"description": "Choose how many save slots are available.\n <cr>Note:</c> This settings is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
+			"default": 9,
+			"min": 1,
+			"max": 999,
+			"control": {
+				"arrows": true,
+				"arrow-step": 1,
+				"slider": false,
+				"input": true
+			}
+		}
 	}
 }

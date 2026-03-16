@@ -1,9 +1,8 @@
 #include <Geode/Geode.hpp>
+using namespace geode::prelude;
+#include "GDrivePopup.hpp"
 #include <Geode/modify/MenuLayer.hpp>
 
-#include "GDrivePopup.hpp"
-
-using namespace geode::prelude;
 
 class $modify(MyMenuLayer, MenuLayer)
 {
@@ -15,7 +14,8 @@ class $modify(MyMenuLayer, MenuLayer)
         {
             return false;
         }
-        auto myButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"), this,
+
+        auto myButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite("icon.png"_spr), this,
                                                       menu_selector(MyMenuLayer::onMyButton));
         auto menu = this->getChildByID("bottom-menu");
         menu->addChild(myButton);
@@ -26,6 +26,6 @@ class $modify(MyMenuLayer, MenuLayer)
     }
     void onMyButton(CCObject *)
     {
-        GDrivePopup::create()->show();
+        GDrivePopup::create();
     }
 };
