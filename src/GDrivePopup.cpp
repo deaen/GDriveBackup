@@ -28,7 +28,7 @@ GDrivePopup *GDrivePopup::create()
 
 bool GDrivePopup::init()
 {
-    if (!Popup::init(470.f, 285.f, "GJ_square02.png"))
+    if (!Popup::init(470.f, 235.f, "GJ_square02.png"))
         return false;
     GDriveManager::getInstance()->setCurrentPopup(this);
     this->setID("gdrive-popup"_spr);
@@ -55,7 +55,7 @@ bool GDrivePopup::init()
     m_buttonMenu->addChildAtPosition(m_leftArrowButton, Anchor::Left,
                                      {
                                          (m_leftArrowButton->getContentWidth() / 2) + 7.f,
-                                         -40.f,
+                                         -13.f,
                                      });
     /* Right Arrow Button */
     auto rightArrowSpr = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
@@ -68,19 +68,19 @@ bool GDrivePopup::init()
     m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right,
                                      {
                                          -(m_rightArrowButton->getContentWidth() / 2) - 7.f,
-                                         -40.f,
+                                         -13.f,
                                      });
 
     /* Popup Column */
     auto popupColumn = CCMenu::create();
     popupColumn->setLayout(
-        ColumnLayout::create()->setAxisReverse(true)->setGap(17.f)->setAxisAlignment(AxisAlignment::End));
-    popupColumn->setContentSize({400.f, m_mainLayer->getContentHeight() - 50.f});
+        ColumnLayout::create()->setAxisReverse(true)->setGap(17.f)->setAxisAlignment(AxisAlignment::Start));
+    popupColumn->setContentSize({400.f, m_mainLayer->getContentHeight() - 60.f});
     popupColumn->setAnchorPoint({0.5f, 0.5f});
     popupColumn->setID("popup-column"_spr);
 
     /* Auto Slot */
-    popupColumn->addChild(GDriveSlotBox::create(0, popupColumn->getContentWidth(), 40.f));
+    // popupColumn->addChild(GDriveSlotBox::create(0, popupColumn->getContentWidth(), 40.f));
 
     /* Slot Row */
     m_slotRow = CCNode::create();
@@ -118,7 +118,7 @@ bool GDrivePopup::init()
     popupColumn->addChild(m_pageButtonsRow);
 
     popupColumn->updateLayout();
-    m_mainLayer->addChildAtPosition(popupColumn, Anchor::Center, {0, -50.f});
+    m_mainLayer->addChildAtPosition(popupColumn, Anchor::Center); //, {0, -50.f});
 
     /* Name Row */
     auto infoRow = CCMenu::create();
@@ -133,12 +133,16 @@ bool GDrivePopup::init()
     infoRow->setID("name-row"_spr);
 
     /* Player Name */
-    auto playerName = CCLabelBMFont::create(GameManager::sharedState()->m_playerName.c_str(), "goldFont.fnt");
+    int accID = GJAccountManager::sharedState()->m_accountID;
+    auto playerName = CCLabelBMFont::create(
+        (accID != 0) ? GameManager::sharedState()->m_playerName.c_str() : "Unregistered", "goldFont.fnt");
+    if (!accID)
+        playerName->setColor({255, 0, 0});
     playerName->setID("player-name"_spr);
     infoRow->addChild(playerName);
 
     /* 's saves */
-    auto ssavesLabel = CCLabelBMFont::create("'s saves", "bigFont.fnt");
+    auto ssavesLabel = CCLabelBMFont::create((accID != 0) ? "'s saves" : "saves", "bigFont.fnt");
     ssavesLabel->setScale(0.8f);
     ssavesLabel->setID("saves-label"_spr);
     infoRow->addChild(ssavesLabel);
@@ -151,7 +155,7 @@ bool GDrivePopup::init()
     infoRow->addChild(nameInfoButton);
 
     infoRow->updateLayout();
-    m_mainLayer->addChildAtPosition(infoRow, Anchor::Top, {0, -61.f});
+    m_mainLayer->addChildAtPosition(infoRow, Anchor::Top, {0, -65.f});
 
     setupEmail();
 
@@ -204,10 +208,19 @@ void GDrivePopup::onToggleAccountVisibility(CCObject *sender)
 }
 void GDrivePopup::onNameInfo(CCObject *sender)
 {
+    int accID = GJAccountManager::sharedState()->m_accountID;
     FLAlertLayer::create(
         "Account info",
-        "Each and every of your GD accounts has <cy>different</c> save slots!\nFor example, if you sign into your alt "
-        "GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty Cool!",
+        (accID != 0)
+            ? fmt::format(
+                  "Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt "
+                  "GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty "
+                  "Cool!\nfolder ID: <cy>{}</c>",
+                  accID)
+            : fmt::format(
+                  "You are currently on an <cr>unregistered</c> account. Saving data while signed out will overwrite "
+                  "any other data you might have saved while signed out other sessions/devices.\nfolder ID: <cy>{}</c>",
+                  accID),
         "Okay")
         ->show();
 }
@@ -251,7 +264,6 @@ void GDrivePopup::setupEmail()
         spinner->setVisible(false);
         if (email == "")
         {
-            log::debug("i am ehre");
             return;
         }
 

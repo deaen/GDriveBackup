@@ -38,9 +38,9 @@ void GDriveManager::signin()
 
     /* Get url from api and then open in browser */
     async::spawn(req.get("https://api.deaen.top/gdb/getgoogleauth/"), [this](web::WebResponse res) {
-        if (!res.error() && res.code() == 200)
+        if (res.ok())
         {
-            auto URL = res.json().unwrap().get<std::string>("authorizationUrl").unwrapOr("");
+            auto URL = res.json().unwrapOrDefault().get<std::string>("authorizationUrl").unwrapOrDefault();
             if (URL != "")
             {
                 web::openLinkInBrowser(fmt::format(
@@ -57,7 +57,7 @@ void GDriveManager::signin()
         if (m_currentSigninPopup)
             m_currentSigninPopup->showSignin();
 
-        showError("Sign in", res.string().unwrap());
+        showError("Sign in", res.string().unwrapOrDefault());
     });
 }
 void GDriveManager::verify()
@@ -69,9 +69,9 @@ void GDriveManager::verify()
 
     /* Get token and save it in file */
     async::spawn(req.get("https://api.deaen.top/gdb/getrefreshtoken/"), [this](web::WebResponse res) {
-        if (!res.error() && res.code() == 200)
+        if (res.ok())
         {
-            auto token = res.json().unwrap().get<std::string>("refresh_token").unwrapOr("");
+            auto token = res.json().unwrapOrDefault().get<std::string>("refresh_token").unwrapOrDefault();
             if (token != "")
             {
                 Mod::get()->setSavedValue<EncStr>("refresh_token", GDriveEncypt::create()->encryptString(token));
@@ -83,7 +83,7 @@ void GDriveManager::verify()
         if (m_currentSigninPopup)
             m_currentSigninPopup->showVerify();
 
-        showError("Verify", res.string().unwrap());
+        showError("Verify", res.string().unwrapOrDefault());
     });
 }
 void GDriveManager::signout(bool openAgain)
@@ -98,14 +98,250 @@ void GDriveManager::signout(bool openAgain)
     if (openAgain)
         GDrivePopup::create();
 }
-void GDriveManager::saveData()
+
+arc::Future<std::string> GDriveManager::getFolderID(int slot, bool autoCreate)
+{
+    std::string latestID;
+
+    for (const auto &folder : utils::string::split(
+             fmt::format("GDrive Backup/{}/slot {}", GJAccountManager::sharedState()->m_accountID, slot), "/"))
+    {
+        if (folder.empty())
+            continue;
+
+        auto req = web::WebRequest();
+        req.param("access_token", co_await getAccessToken());
+
+        std::string query =
+            fmt::format("name='{}' and trashed=false and mimeType = 'application/vnd.google-apps.folder'", folder);
+        if (!latestID.empty())
+            query += fmt::format(" and '{}' in parents", latestID);
+        req.param("q", query);
+
+        auto res = req.getSync("https://www.googleapis.com/drive/v3/files");
+        if (res.ok())
+        {
+            auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+            if (!id.empty())
+            {
+                latestID = id;
+                Mod::get()->setSavedValue<std::string>(fmt::format("{}-DFID", folder), id);
+                continue;
+            }
+        }
+
+        // if all else fails just create the folder man
+        if (!autoCreate)
+            co_return "";
+
+        req.removeParam("q");
+        auto body = matjson::makeObject({
+            {"name", folder},
+            {"mimeType", "application/vnd.google-apps.folder"},
+        });
+
+        if (!latestID.empty())
+        {
+            body.set("parents", std::vector<matjson::Value>({latestID}));
+        }
+        req.bodyJSON(body);
+        res = req.postSync("https://www.googleapis.com/drive/v3/files");
+        if (res.ok())
+        {
+            auto id = res.json().unwrapOrDefault().get<std::string>("id").unwrapOrDefault();
+            if (!id.empty())
+            {
+                latestID = id;
+                Mod::get()->setSavedValue<std::string>(fmt::format("{}-DFID", folder), id);
+                continue;
+            }
+        }
+
+        latestID = "";
+    }
+
+    co_return latestID;
+}
+
+arc::Future<> GDriveManager::setMetadata(const int slot)
+{
+    auto parentID = co_await getFolderID(slot, false);
+    if (parentID.empty())
+    {
+        Mod::get()->setSavedValue<time_t>(
+            fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), 0);
+        Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot),
+                                          0);
+        co_return;
+    }
+
+    co_return;
+}
+
+void GDriveManager::saveData(GDriveSlotBox *box)
+{
+    auto req = web::WebRequest();
+
+    req.onProgress([this, box](web::WebProgress const &p) {
+        if (box)
+            box->setStatusPercentage(m_SaveProgress);
+    });
+
+    async::spawn(saveString("save.dat",
+                            GameManager::sharedState()->getCompressedSaveString() + "|" +
+                                LocalLevelManager::sharedState()->getCompressedSaveString(),
+                            box->getSlot(), req, box),
+                 [box] {
+                     if (box)
+                         box->setStatusVisiblity(false);
+                 });
+}
+
+void GDriveManager::loadData(GDriveSlotBox *box)
 {
 }
-void GDriveManager::getMetadata()
+
+arc::Future<bool> GDriveManager::saveString(const std::string_view name, const std::string data, const int slot,
+                                            web::WebRequest responseReq, GDriveSlotBox *box)
 {
-}
-void GDriveManager::loadData()
-{
+    co_await waitForMainThread([box] {
+        if (box)
+            box->setStatusMessage("Preparing...");
+    });
+
+    constexpr size_t chunkSize = 256 * 1024;
+    std::string resumableURL;
+    auto parentID = co_await getFolderID(slot);
+    auto token = co_await getAccessToken();
+    std::string fileID;
+
+    /* Look 4 if file alr exists */
+    {
+        auto req = web::WebRequest();
+        req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", name, parentID));
+        req.param("access_token", token);
+
+        auto res = req.getSync("https://www.googleapis.com/drive/v3/files");
+        if (res.ok())
+        {
+            auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+            if (!id.empty())
+            {
+                fileID = id;
+            }
+        }
+        else
+        {
+            log::debug("ERROR {}", res.string());
+            co_return false;
+        }
+    }
+
+    /* Initial request */
+    {
+        auto req = web::WebRequest();
+        req.param("uploadType", "resumable");
+        req.param("access_token", token);
+
+        req.header("X-Upload-Content-Length", std::to_string(data.size()));
+        req.header("Content-Type", "application/json; charset=UTF-8");
+
+        web::WebResponse res;
+        if (fileID.empty())
+        {
+            req.bodyJSON(matjson::makeObject({
+                {"name", name},
+                {"parents", std::vector<matjson::Value>({parentID})},
+            }));
+            res = req.postSync("https://www.googleapis.com/upload/drive/v3/files");
+        }
+        else
+            res = req.patchSync(fmt::format("https://www.googleapis.com/upload/drive/v3/files/{}", fileID));
+
+        if (res.ok())
+        {
+            if (auto header = res.getAllHeadersNamed("location"))
+            {
+                if (!header->empty() && utils::string::contains(header->at(0), "https://"))
+                {
+                    resumableURL = header->at(0);
+                }
+            }
+        }
+        if (resumableURL.empty())
+        {
+            log::debug("ERROR {}", res.string());
+            co_return false;
+        }
+    }
+
+    co_await waitForMainThread([box, &data] {
+        if (box)
+        {
+            box->setStatusMessage("Saving...");
+            box->showPercentage(data.size());
+        }
+    });
+
+    /* Upload Data */
+    {
+        responseReq.param("access_token", token);
+        web::WebResponse res;
+        int retries = 0;
+        size_t i = 0;
+        while (i < data.size())
+        {
+            size_t remaining = data.size() - i;
+            size_t currentSize = std::min(chunkSize, remaining);
+
+            responseReq.body(ByteVector(data.data() + i, data.data() + i + currentSize));
+            responseReq.removeHeader("content-length");
+            responseReq.removeHeader("content-range");
+            responseReq.header("content-length", std::to_string(currentSize));
+            responseReq.header("content-range", fmt::format("bytes {}-{}/{}", i, i + currentSize - 1, data.size()));
+            res = responseReq.putSync(resumableURL);
+
+            if (res.ok())
+            {
+                i += currentSize;
+            }
+            else if (res.badClient())
+            {
+                // try 5 times before giving up
+                if (retries < 5)
+                {
+                    retries += 1;
+                    continue;
+                }
+                else
+                {
+                    // assume the worst.
+                    log::debug("{}", res.string());
+                }
+            }
+            else
+            {
+                if (auto range = res.getAllHeadersNamed("range"))
+                {
+                    size_t r = geode::utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back())
+                                   .unwrapOrDefault();
+                    if (r == 0)
+                    {
+                        log::debug("ERROR");
+                        co_return false;
+                    }
+                    i = r + 1;
+                }
+                else
+                {
+                    log::debug("{}", res.string());
+                    co_return false;
+                }
+            }
+            m_SaveProgress = i + currentSize;
+        }
+    }
+    co_return true;
 }
 
 void GDriveManager::setCurrentPopup(GDrivePopup *popup)
@@ -150,10 +386,10 @@ arc::Future<std::string> GDriveManager::getAccessToken()
 
     /* get access token and save it to var */
     auto res = req.getSync("https://api.deaen.top/gdb/getaccesstoken/");
-    if (!res.error() && res.code() == 200)
+    if (res.ok())
     {
-        auto token = res.json().unwrap().get<std::string>("access_token").unwrapOr("");
-        auto expires_at = res.json().unwrap().get<time_t>("expires_in").unwrapOr(0);
+        auto token = res.json().unwrapOrDefault().get<std::string>("access_token").unwrapOrDefault();
+        auto expires_at = res.json().unwrapOrDefault().get<time_t>("expires_in").unwrapOrDefault();
         if (token != "" && expires_at != 0)
         {
             Mod::get()->setSavedValue<EncStr>("access_token", GDriveEncypt::create()->encryptString(token));
@@ -172,21 +408,19 @@ arc::Future<std::string> GDriveManager::getEmail()
 
     /* Create request */
     auto req = web::WebRequest();
-    auto token = co_await getAccessToken();
-    req.param("access_token", token);
+    req.param("access_token", co_await getAccessToken());
     req.param("fields", "user");
 
     /* get access token and save it to var */
     auto res = req.getSync("https://www.googleapis.com/drive/v3/about");
-    if (!res.error() && res.code() == 200)
+    if (res.ok())
     {
-
         auto email = res.json()
-                         .unwrap()
+                         .unwrapOrDefault()
                          .get<matjson::Value>("user")
-                         .unwrapOr(matjson::Value())
+                         .unwrapOrDefault()
                          .get<std::string>("emailAddress")
-                         .unwrapOr("");
+                         .unwrapOrDefault();
         if (email != "")
         {
             Mod::get()->setSavedValue<std::string>("email", email);
@@ -195,9 +429,9 @@ arc::Future<std::string> GDriveManager::getEmail()
     else
     {
         auto error = res.json()
-                         .unwrap()
+                         .unwrapOrDefault()
                          .get<matjson::Value>("error")
-                         .unwrapOr(matjson::Value())
+                         .unwrapOrDefault()
                          .get<std::string>("status")
                          .unwrapOr(std::to_string(res.code()));
         showError("Email", error);

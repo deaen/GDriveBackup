@@ -37,5 +37,5 @@ class GDrivePopup : public Popup
     CCMenuItemSpriteExtra *m_hideEmailButton;
     std::string m_email;
     std::string m_emailCensored;
-    bool m_emailVisible;
+    bool m_emailVisible = true;
 };
