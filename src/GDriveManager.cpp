@@ -17,12 +17,30 @@ GDriveManager *GDriveManager::getInstance()
 
 void GDriveManager::showError(const std::string &title, const std::string &error, bool invasive)
 {
-    std::string body = "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your internet "
-                       "<cl>connection</c>.\nIf this keeps happening, please report this issue to the developer.";
-    if (error != "")
-        body += "\n <cr>" + error + "</c>";
+    if (invasive)
+    {
+        std::string body =
+            "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your internet "
+            "<cl>connection</c>.\nIf this keeps happening, please report this issue to the developer.";
+        if (error != "")
+            body += "\n <cr>" + error + "</c>";
 
-    FLAlertLayer::create((title + " Error").c_str(), body, "OK")->show();
+        FLAlertLayer::create((title + " Error").c_str(), body, "OK")->show();
+    }
+    else
+    {
+        Notification::create(title + ":" + error, NotificationIcon::Error, 3.f)->show();
+    }
+}
+void GDriveManager::updateQueue(QueueType queue)
+{
+    if (queue == Save)
+    {
+        if (!m_saveQueue.empty() && m_saveQueue.begin()->first)
+        {
+            saveData(m_saveQueue.begin()->first);
+        }
+    }
 }
 
 void GDriveManager::signin()
@@ -103,8 +121,8 @@ arc::Future<std::string> GDriveManager::getFolderID(int slot, bool autoCreate)
 {
     std::string latestID;
 
-    for (const auto &folder : utils::string::split(
-             fmt::format("GDrive Backup/{}/slot {}", GJAccountManager::sharedState()->m_accountID, slot), "/"))
+    for (const auto &folder :
+         utils::string::split(fmt::format("GDrive Backup/{}", GJAccountManager::sharedState()->m_accountID, slot), "/"))
     {
         if (folder.empty())
             continue;
@@ -178,35 +196,42 @@ arc::Future<> GDriveManager::setMetadata(const int slot)
     co_return;
 }
 
-void GDriveManager::saveData(GDriveSlotBox *box)
+void GDriveManager::saveData(const int slot)
 {
     auto req = web::WebRequest();
 
-    req.onProgress([this, box](web::WebProgress const &p) {
-        if (box)
-            box->setStatusPercentage(m_SaveProgress);
+    req.onProgress([this, slot](web::WebProgress const &p) {
+        if (m_saveQueue[slot])
+            m_saveQueue[slot]->setStatusPercentage(m_SaveProgress);
     });
 
-    async::spawn(saveString("save.dat",
-                            GameManager::sharedState()->getCompressedSaveString() + "|" +
-                                LocalLevelManager::sharedState()->getCompressedSaveString(),
-                            box->getSlot(), req, box),
-                 [box] {
-                     if (box)
-                         box->setStatusVisiblity(false);
-                 });
+    m_saveListener.spawn(saveString(fmt::format("save-{}.dat", slot),
+                                   GameManager::sharedState()->getCompressedSaveString() + "|" +
+                                       LocalLevelManager::sharedState()->getCompressedSaveString(),
+                                   slot, req),
+                        [this, slot](bool ok) {
+                            log::debug("hello im here");
+                            if (ok)
+                                Notification::create(fmt::format("GDrive Backup Slot {} Save Complete!", slot),
+                                                     NotificationIcon::Success, 3.f)
+                                    ->show();
+                            if (m_saveQueue[slot])
+                                m_saveQueue[slot]->setStatusVisiblity(false);
+
+                            removeFromQueue(Save, slot);
+                        });
 }
 
-void GDriveManager::loadData(GDriveSlotBox *box)
+void GDriveManager::loadData(const int slot)
 {
 }
 
-arc::Future<bool> GDriveManager::saveString(const std::string_view name, const std::string data, const int slot,
-                                            web::WebRequest responseReq, GDriveSlotBox *box)
+arc::Future<bool> GDriveManager::saveString(const std::string name, const std::string data, const int slot,
+                                            web::WebRequest responseReq)
 {
-    co_await waitForMainThread([box] {
-        if (box)
-            box->setStatusMessage("Preparing...");
+    co_await waitForMainThread([slot, this] {
+        if (m_saveQueue[slot])
+            m_saveQueue[slot]->setStatusMessage("Preparing...");
     });
 
     constexpr size_t chunkSize = 256 * 1024;
@@ -214,6 +239,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string_view name, const s
     auto parentID = co_await getFolderID(slot);
     auto token = co_await getAccessToken();
     std::string fileID;
+    m_saveTotal = data.size();
 
     /* Look 4 if file alr exists */
     {
@@ -232,7 +258,9 @@ arc::Future<bool> GDriveManager::saveString(const std::string_view name, const s
         }
         else
         {
-            log::debug("ERROR {}", res.string());
+            co_await waitForMainThread([&res, slot, this] {
+                showError(fmt::format("GDrive Backup Slot {} Save Failed ", slot), res.errorMessage().data(), false);
+            });
             co_return false;
         }
     }
@@ -270,16 +298,18 @@ arc::Future<bool> GDriveManager::saveString(const std::string_view name, const s
         }
         if (resumableURL.empty())
         {
-            log::debug("ERROR {}", res.string());
+            co_await waitForMainThread([&res, slot, this] {
+                showError(fmt::format("GDrive Backup Slot {} Save Failed ", slot), res.errorMessage().data(), false);
+            });
             co_return false;
         }
     }
 
-    co_await waitForMainThread([box, &data] {
-        if (box)
+    co_await waitForMainThread([&data, this, slot] {
+        if (m_saveQueue[slot])
         {
-            box->setStatusMessage("Saving...");
-            box->showPercentage(data.size());
+            m_saveQueue[slot]->setStatusMessage("Saving...");
+            m_saveQueue[slot]->showPercentage(m_saveTotal);
         }
     });
 
@@ -291,9 +321,9 @@ arc::Future<bool> GDriveManager::saveString(const std::string_view name, const s
         size_t i = 0;
         while (i < data.size())
         {
-            size_t remaining = data.size() - i;
-            size_t currentSize = std::min(chunkSize, remaining);
-
+            size_t currentSize = std::min(chunkSize, data.size() - i);
+            m_SaveProgress = i + currentSize;
+            
             responseReq.body(ByteVector(data.data() + i, data.data() + i + currentSize));
             responseReq.removeHeader("content-length");
             responseReq.removeHeader("content-range");
@@ -316,7 +346,11 @@ arc::Future<bool> GDriveManager::saveString(const std::string_view name, const s
                 else
                 {
                     // assume the worst.
-                    log::debug("{}", res.string());
+                    co_await waitForMainThread([&res, slot, this] {
+                        showError(fmt::format("GDrive Backup Slot {} Save Failed ", slot), res.errorMessage().data(),
+                                  false);
+                    });
+                    co_return false;
                 }
             }
             else
@@ -327,18 +361,23 @@ arc::Future<bool> GDriveManager::saveString(const std::string_view name, const s
                                    .unwrapOrDefault();
                     if (r == 0)
                     {
-                        log::debug("ERROR");
+                        co_await waitForMainThread([&res, slot, this] {
+                            showError(fmt::format("GDrive Backup Slot {} Save Failed ", slot),
+                                      res.errorMessage().data(), false);
+                        });
                         co_return false;
                     }
                     i = r + 1;
                 }
                 else
                 {
-                    log::debug("{}", res.string());
+                    co_await waitForMainThread([&res, slot, this] {
+                        showError(fmt::format("GDrive Backup Slot {} Save Failed ", slot), res.errorMessage().data(),
+                                  false);
+                    });
                     co_return false;
                 }
             }
-            m_SaveProgress = i + currentSize;
         }
     }
     co_return true;
@@ -439,3 +478,63 @@ arc::Future<std::string> GDriveManager::getEmail()
 
     co_return Mod::get()->getSavedValue<std::string>("email");
 }
+
+void GDriveManager::addToQueue(QueueType queue, GDriveSlotBox *box)
+{
+    if (queue == Save)
+    {
+        m_saveQueue[box->getSlot()] = box;
+        updateQueue(Save);
+    }
+}
+void GDriveManager::removeFromQueue(QueueType queue, const int slot)
+{
+    if (queue == Save)
+    {
+        if (!m_saveQueue.empty() && m_saveQueue.begin()->first == slot)
+        {
+            m_saveListener.cancel();
+        }
+
+        m_saveQueue.erase(slot);
+        updateQueue(Save);
+    }
+}
+
+GDriveManager::Status GDriveManager::checkStatus(QueueType queue, GDriveSlotBox *box)
+{
+    if (queue == Save)
+    {
+        if (!m_saveQueue.empty() && m_saveQueue.begin()->first == box->getSlot())
+        {
+            m_saveQueue[box->getSlot()] = box;
+            return Working;
+        }
+        else if (m_saveQueue.contains(box->getSlot()))
+        {
+            m_saveQueue[box->getSlot()] = box;
+            return Waiting;
+        }
+        else
+            return Idle;
+    }
+
+    return Idle;
+}
+
+void GDriveManager::removeBoxPointer(QueueType queue, const int slot)
+{
+    if (queue == Save)
+    {
+        if (m_saveQueue.contains(slot))
+            m_saveQueue[slot] = nullptr;
+    }
+}
+size_t GDriveManager::getSaveProgress()
+{
+    return m_SaveProgress;
+}
+size_t GDriveManager::getsaveTotal()
+{
+    return m_saveTotal;
+};

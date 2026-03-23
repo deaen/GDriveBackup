@@ -5,7 +5,7 @@ class GDriveSlotBox : public CCNode
 {
   public:
     static GDriveSlotBox *create(int slot, float width = 136.6f, float height = 100.f);
-    void setVisible(bool visible) override;
+    void onExitTransitionDidStart() override;
 
     int getSlot();
     void setStatusMessage(std::string_view message);
@@ -28,10 +28,12 @@ class GDriveSlotBox : public CCNode
     CCLabelBMFont *m_statusMessage;
     CCLabelBMFont *m_statusPercentage;
     LoadingSpinner *m_statusSpinner;
+    CCMenuItemSpriteExtra *m_statusCancel;
 
     int m_slot;
     size_t m_totalSaveSize = 0;
 
     void onSave(CCObject *sender);
     void onLoad(CCObject *sender);
+    void onCancel(CCObject *onCancel);
 };
