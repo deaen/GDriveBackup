@@ -15,12 +15,13 @@ class GDriveManager : public cocos2d::CCObject
     void signout(bool openAgain);
 
     void saveData(const int slot);
+    void loadMetadata(const int slot);
     void loadData(const int slot);
 
     arc::Future<std::string> getFolderID(int slot, bool autoCreate = true);
     arc::Future<> setMetadata(const int slot);
-    arc::Future<bool> saveString(const std::string name, const std::string data, const int slot,
-                                 web::WebRequest reesponseReq);
+    arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
+    arc::Future<bool> loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer);
 
     void setCurrentPopup(GDrivePopup *popup);
     void setCurrentSigninPopup(GDriveSigninPopup *signinPopup);
@@ -37,8 +38,8 @@ class GDriveManager : public cocos2d::CCObject
         Metadata
     };
 
-    void addToQueue(QueueType queue, GDriveSlotBox *box);
-    void removeFromQueue(QueueType queue, const int slot);
+    void addToQueue(QueueType queueType, GDriveSlotBox *box);
+    void removeFromQueue(QueueType queueType, const int slot);
 
     enum Status
     {
@@ -47,11 +48,14 @@ class GDriveManager : public cocos2d::CCObject
         Working
     };
 
-    Status checkStatus(QueueType queue, GDriveSlotBox *box);
-    void removeBoxPointer(QueueType queue, const int slot);
+    Status checkStatus(QueueType queueType, GDriveSlotBox *box);
+    void removeBoxPointer(QueueType queueType, const int slot);
 
     size_t getSaveProgress();
-    size_t getsaveTotal();
+    size_t getSaveTotal();
+
+    size_t getLoadProgress();
+    size_t getLoadTotal();
 
   private:
     GDriveManager();
@@ -63,14 +67,18 @@ class GDriveManager : public cocos2d::CCObject
 
     void showError(const std::string &title = "GDriveBackup", const std::string &error = "", bool invasive = true);
 
-    void updateQueue(QueueType queue);
+    void updateQueue(QueueType queueType);
 
     async::TaskHolder<bool> m_saveListener;
-    async::TaskHolder<bool> m_metadataListener;
+    async::TaskHolder<bool> m_loadListener;
+    async::TaskHolder<> m_metadataListener;
 
     std::map<int, GDriveSlotBox *> m_saveQueue;
     std::map<int, GDriveSlotBox *> m_metadataQueue;
 
-    size_t m_SaveProgress = 0;
+    size_t m_saveProgress = 0;
     size_t m_saveTotal = 0;
+
+    size_t m_loadProgress = 0;
+    size_t m_loadTotal = 0;
 };

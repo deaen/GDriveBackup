@@ -1,10 +1,10 @@
 {
-	"geode": "5.3.0",
+	"geode": "5.4.1",
 	"gd": {
 		"win": "2.2081"
 	},
 	"id": "deaen.gdrivebackup",
-	"name": "GDriveBackup",
+	"name": "GDrive Backup",
 	"version": "v1.0.0",
 	"developer": "deaen",
 	"description": "",

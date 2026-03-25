@@ -14,6 +14,7 @@ GDriveSlotBox *GDriveSlotBox::create(int slot, float width, float height)
     delete ret;
     return nullptr;
 }
+
 void GDriveSlotBox::onExitTransitionDidStart()
 {
     CCNode::onExitTransitionDidStart();
@@ -74,7 +75,7 @@ bool GDriveSlotBox::init(int slot, float width, float height)
             ? ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between)
             : RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between));
     m_menu->setID("menu"_spr);
-    float buttonSize = m_menu->getScaledContentWidth() + 4.f;
+    float buttonSize = m_menu->getScaledContentWidth() + 5.f;
     /* Title */
     auto slotTitle =
         CCLabelBMFont::create((m_slot != 0) ? fmt::format("Slot {}", m_slot).c_str() : "Automatic Backup",
@@ -83,7 +84,7 @@ bool GDriveSlotBox::init(int slot, float width, float height)
 
     /* Info Row */
     m_infoRow = CCNode::create();
-    m_infoRow->setLayout(RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between));
+    m_infoRow->setLayout(RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Center));
     m_infoRow->setContentWidth((m_slot != 0) ? m_menu->getScaledContentWidth() + 17.f : (width / 2.f));
     m_infoRow->setAnchorPoint({0.5f, 0.5f});
     m_infoRow->setID("info-row"_spr);
@@ -94,8 +95,7 @@ bool GDriveSlotBox::init(int slot, float width, float height)
     m_infoRow->addChild(timeIcon);
 
     /*Time Label*/
-    m_timeLabel = CCLabelBMFont::create("Never Saved |", "chatFont.fnt");
-    m_timeLabel->setScale(0.6f);
+    m_timeLabel = CCLabelBMFont::create("Never Saved", "chatFont.fnt");
     m_timeLabel->setID("time-label"_spr);
     m_infoRow->addChild(m_timeLabel);
 
@@ -106,18 +106,16 @@ bool GDriveSlotBox::init(int slot, float width, float height)
 
     /*Size Label*/
     m_sizeLabel = CCLabelBMFont::create("N/A", "chatFont.fnt");
-    m_sizeLabel->setScale(0.6f);
     m_sizeLabel->setID("size-label"_spr);
     m_infoRow->addChild(m_sizeLabel);
 
     m_infoRow->updateLayout();
 
     /* Load Button */
-    m_loadButton =
-        CCMenuItemSpriteExtra::create(ButtonSprite::create("Load", (m_slot != 0) ? buttonSize : (width / 4.f),
-                                                           (m_slot != 0) ? buttonSize : (width / 4.f), 1.f, false,
-                                                           "goldFont.fnt", "GJ_button_01.png"),
-                                      this, menu_selector(GDriveSlotBox::onLoad));
+    m_loadButtonSprite = ButtonSprite::create("Load", (m_slot != 0) ? buttonSize : (width / 4.f),
+                                              (m_slot != 0) ? buttonSize : (width / 4.f), 1.f, false, "goldFont.fnt",
+                                              "GJ_button_01.png");
+    m_loadButton = CCMenuItemSpriteExtra::create(m_loadButtonSprite, this, menu_selector(GDriveSlotBox::onLoad));
     m_loadButton->setID("load-button"_spr);
 
     if (m_slot == 0)
@@ -204,8 +202,7 @@ bool GDriveSlotBox::init(int slot, float width, float height)
 
         /* Loading Spinner */
         m_statusSpinner = LoadingSpinner::create(60.f);
-        m_statusSpinner->setID("status_spinner"_spr);
-        m_statusSpinner->setAnchorPoint({0.5f, 0.5f});
+        m_statusSpinner->setID("status-spinner"_spr);
         m_menu->addChild(m_statusSpinner);
 
         setStatusVisiblity(false);
@@ -219,14 +216,25 @@ bool GDriveSlotBox::init(int slot, float width, float height)
     if (saveStatus == GDriveManager::Working)
     {
         setStatusVisiblity(true);
-        showPercentage(GDriveManager::getInstance()->getsaveTotal());
+        showPercentage(GDriveManager::getInstance()->getSaveTotal());
+        setStatusPercentage(GDriveManager::getInstance()->getSaveProgress());
         setStatusMessage("Saving...");
     }
     else if (saveStatus == GDriveManager::Waiting)
     {
         setStatusVisiblity(true);
+        setStatusMessage("Waiting...");
     }
-
+    else
+    {
+        GDriveManager::getInstance()->addToQueue(GDriveManager::Metadata, this);
+        auto savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-timestamp", slot), -1);
+        if (savedTimestamp == -1)
+        {
+            setStatusVisiblity(true);
+            setStatusMessage("Loading...");
+        }
+    }
     return true;
 }
 
@@ -234,8 +242,8 @@ void GDriveSlotBox::onSave(CCObject *sender)
 {
     createQuickPopup(
         fmt::format("Save Slot {}", m_slot).c_str(),
-        fmt::format("Do you want to <cg>save</c> your data to <cj>slot {}</c>?\n<cy>This will override any "
-                    "previously saved data to this slot.</c>",
+        fmt::format("Do you want to <cg>save</c> your data to <cj>slot {}</c>?\n<cy>This will</c> <cr>overwrite</c>  "
+                    "<cy>any previously saved data to this slot!</c>",
                     m_slot)
             .c_str(),
         "Cancel", "Save",
@@ -243,6 +251,7 @@ void GDriveSlotBox::onSave(CCObject *sender)
             if (btn2)
             {
                 setStatusVisiblity(true);
+                setStatusMessage("Waiting...");
                 GDriveManager::getInstance()->addToQueue(GDriveManager::Save, this);
             }
         },
@@ -251,12 +260,26 @@ void GDriveSlotBox::onSave(CCObject *sender)
 
 void GDriveSlotBox::onLoad(CCObject *sender)
 {
+    createQuickPopup(
+        fmt::format("Load Slot {}", m_slot).c_str(),
+        fmt::format("Do you want to <cg>load</c> your <cj>slot {}</c> data?\n<cy>This will</c> <cr>overwrite</c> "
+                    "<cy>your data!</c>",
+                    m_slot)
+            .c_str(),
+        "Cancel", "Load",
+        [this](auto, bool btn2) {
+            if (btn2)
+            {
+                GDriveManager::getInstance()->loadData(m_slot);
+            }
+        },
+        true, true);
 }
 void GDriveSlotBox::onCancel(CCObject *onCancel)
 {
     createQuickPopup(
         fmt::format("Cancel Save to Slot {}", m_slot).c_str(),
-        fmt::format("Do you want to <cr>cancel</c> the saving to <cy>slot {}</c>?", m_slot).c_str(), "Continue", "Cancel",
+        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", m_slot).c_str(), "Continue", "Cancel",
         [this](auto, bool btn2) {
             if (btn2)
             {
@@ -278,6 +301,7 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusMessage->setVisible(true);
         m_statusSpinner->setVisible(true);
         m_statusSpinner->setContentSize({60.f, 60.f});
+        m_statusSpinner->updateLayout();
 
         m_menu->updateLayout();
     }
@@ -295,29 +319,55 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_menu->updateLayout();
     }
 }
+void GDriveSlotBox::updateInfo()
+{
+    auto savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-timestamp", m_slot));
+    auto savedSize = Mod::get()->getSavedValue<size_t>(fmt::format("{}-size", m_slot));
+    if (savedSize == 0)
+    {
+        m_loadButton->setEnabled(false);
+        m_loadButtonSprite->setOpacity(175);
+        m_loadButtonSprite->setColor({165, 165, 165});
+        m_infoRow->updateLayout();
+        return;
+    }
+
+    m_timeLabel->setCString(fmt::format("{:%-d/%b/%y %-I:%M %p}", localtime(savedTimestamp)).c_str());
+    m_sizeLabel->setCString(fmt::format("{:.2f}MB", savedSize / (1024.f * 1024.f)).c_str());
+
+    m_loadButton->setEnabled(true);
+    m_loadButtonSprite->setOpacity(255);
+    m_loadButtonSprite->setColor({255, 255, 255});
+    m_infoRow->updateLayout();
+}
 
 int GDriveSlotBox::getSlot()
 {
     return m_slot;
 }
-void GDriveSlotBox::setStatusMessage(std::string_view message)
+void GDriveSlotBox::setStatusMessage(const std::string_view message)
 {
     m_statusMessage->setCString(message.data());
 }
+
 void GDriveSlotBox::showPercentage(const size_t total)
 {
-    m_totalSaveSize = total;
-    m_statusPercentage->setCString(fmt::format("0% (0/{}MB)", m_totalSaveSize / (1024.f * 1024.f)).c_str());
+    m_total = total;
+    m_statusPercentage->setCString(fmt::format("0% (0/{:.2f}MB)", m_total / (1024.f * 1024.f)).c_str());
     m_statusPercentage->setVisible(true);
     m_statusCancel->setVisible(true);
-    m_statusSpinner->setContentSize({30.f, 30.f});
+    m_statusSpinner->setContentSize({28.f, 28.f});
+    m_statusSpinner->updateLayout();
     m_menu->updateLayout();
 }
 
-void GDriveSlotBox::setStatusPercentage(size_t completed)
+void GDriveSlotBox::setStatusPercentage(size_t progress)
 {
+    if (progress == m_progress)
+        return;
     m_statusPercentage->setCString(fmt::format("{}% ({:.2f}/{:.2f}MB)",
-                                               std::floor((static_cast<float>(completed) / m_totalSaveSize) * 100.f),
-                                               completed / (1024.f * 1024.f), m_totalSaveSize / (1024.f * 1024.f))
+                                               std::floor((static_cast<float>(progress) / m_total) * 100.f),
+                                               progress / (1024.f * 1024.f), m_total / (1024.f * 1024.f))
                                        .c_str());
+    m_progress = progress;
 }

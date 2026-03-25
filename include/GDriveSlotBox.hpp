@@ -9,9 +9,11 @@ class GDriveSlotBox : public CCNode
 
     int getSlot();
     void setStatusMessage(std::string_view message);
-    void setStatusPercentage(size_t completed);
+    void setStatusPercentage(const size_t progress);
     void showPercentage(const size_t total);
     void setStatusVisiblity(bool visible);
+
+    void updateInfo();
 
   private:
     bool init(int slot, float width, float height);
@@ -20,6 +22,7 @@ class GDriveSlotBox : public CCNode
     CCNode *m_infoRow;
     NineSlice *m_separator;
     CCMenuItemSpriteExtra *m_saveButton;
+    ButtonSprite* m_loadButtonSprite;
     CCMenuItemSpriteExtra *m_loadButton;
 
     CCLabelBMFont *m_timeLabel;
@@ -30,8 +33,9 @@ class GDriveSlotBox : public CCNode
     LoadingSpinner *m_statusSpinner;
     CCMenuItemSpriteExtra *m_statusCancel;
 
-    int m_slot;
-    size_t m_totalSaveSize = 0;
+    int m_slot = 0;
+    size_t m_total= 0;
+    size_t m_progress= 0;
 
     void onSave(CCObject *sender);
     void onLoad(CCObject *sender);

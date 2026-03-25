@@ -1,12 +1,17 @@
 #pragma once
 using namespace geode::prelude;
+
+#include "GDriveLoadLayer.hpp"
 #include "GDriveSlotBox.hpp"
+
 
 class GDrivePopup : public Popup
 {
   public:
     static GDrivePopup *create();
 
+    GDriveLoadLayer *showLoadLayer();
+    void hideLoadLayer();
   private:
     bool init() override;
     void onExitTransitionDidStart() override;
@@ -19,16 +24,17 @@ class GDrivePopup : public Popup
     void onSignOut(CCObject *sender);
     void setupEmail();
     void showSlotPage(int pageNumber);
-    
 
     static constexpr int m_slotsPerPage = 3;
     int m_maxSlotPage = 0;
     int m_slotCount = 0;
     int m_currentSlotPage = 1;
 
+    GDriveLoadLayer *m_loadingLayer;
+
     std::vector<GDriveSlotBox *> m_slotBoxes;
-    CCMenu* m_pageButtonsRow;
-    CCNode* m_slotRow;
+    CCMenu *m_pageButtonsRow;
+    CCNode *m_slotRow;
     CCMenuItemSpriteExtra *m_leftArrowButton;
     CCMenuItemSpriteExtra *m_rightArrowButton;
 

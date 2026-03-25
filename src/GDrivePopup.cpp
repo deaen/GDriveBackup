@@ -358,6 +358,24 @@ void GDrivePopup::showSlotPage(int pageNumber)
     m_currentSlotPage = pageNumber;
 }
 
+GDriveLoadLayer *GDrivePopup::showLoadLayer()
+{
+    this->setKeypadEnabled(false);
+
+    m_loadingLayer = GDriveLoadLayer::create();
+    if (auto scene = CCDirector::get()->getRunningScene())
+        scene->addChild(m_loadingLayer, 9999);
+
+    return m_loadingLayer;
+}
+void GDrivePopup::hideLoadLayer()
+{
+    this->setKeypadEnabled(true);
+    
+    if (m_loadingLayer)
+        m_loadingLayer->removeFromParent();
+}
+
 /* Banished to comment zone #FuckTouchPriority */
 
 // $execute
