@@ -19,7 +19,7 @@ class GDriveManager : public cocos2d::CCObject
     void loadData(const int slot);
 
     arc::Future<std::string> getFolderID(int slot, bool autoCreate = true);
-    arc::Future<> setMetadata(const int slot);
+    arc::Future<bool> setMetadata(const int slot);
     arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
     arc::Future<bool> loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer);
 
@@ -28,7 +28,8 @@ class GDriveManager : public cocos2d::CCObject
 
     GDrivePopup *getCurrentPopup();
     GDriveSigninPopup *getCurrentSigninPopup();
-    std::string getRefreshToken();
+
+    arc::Future<std::string> getRefreshToken();
     arc::Future<std::string> getAccessToken();
     arc::Future<std::string> getEmail();
 
@@ -63,7 +64,7 @@ class GDriveManager : public cocos2d::CCObject
     GDrivePopup *m_currentPopup = nullptr;
     GDriveSigninPopup *m_currentSigninPopup = nullptr;
     std::string m_uuid;
-    std::time_t m_timestamp = 0;
+    time_t m_timestamp = 0;
 
     void showError(const std::string &title = "GDriveBackup", const std::string &error = "", bool invasive = true);
 
@@ -71,7 +72,7 @@ class GDriveManager : public cocos2d::CCObject
 
     async::TaskHolder<bool> m_saveListener;
     async::TaskHolder<bool> m_loadListener;
-    async::TaskHolder<> m_metadataListener;
+    async::TaskHolder<bool> m_metadataListener;
 
     std::map<int, GDriveSlotBox *> m_saveQueue;
     std::map<int, GDriveSlotBox *> m_metadataQueue;

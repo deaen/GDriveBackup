@@ -19,9 +19,11 @@ class GDriveSlotBox : public CCNode
     bool init(int slot, float width, float height);
 
     CCMenu *m_menu;
+    CCLabelBMFont* m_slotTitle;
     CCNode *m_infoRow;
     NineSlice *m_separator;
     CCMenuItemSpriteExtra *m_saveButton;
+    ButtonSprite* m_saveButtonSprite;
     ButtonSprite* m_loadButtonSprite;
     CCMenuItemSpriteExtra *m_loadButton;
 
