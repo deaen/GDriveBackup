@@ -12,12 +12,7 @@
 	"developer": "deaen",
 	"description": "",
 	"dependencies": {
-		"geode.node-ids": ">=v1.20.0",
-		"camila314.geode-uri":{
-			"platforms": ["win", "mac"],
-			"version": ">= 2.0.0",
-			"required": false
-		}
+		"geode.node-ids": ">=v1.20.0"
 	},
 	"resources": {
 		"sprites": [
