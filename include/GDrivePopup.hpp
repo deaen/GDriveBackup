@@ -12,6 +12,7 @@ class GDrivePopup : public Popup
 
     GDriveLoadLayer *showLoadLayer();
     void hideLoadLayer();
+    
   private:
     bool init() override;
     void onExitTransitionDidStart() override;

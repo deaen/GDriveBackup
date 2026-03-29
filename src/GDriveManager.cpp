@@ -76,7 +76,7 @@ void GDriveManager::signin()
             }
         }
         else
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
 
         if (m_currentSigninPopup)
             m_currentSigninPopup->showSignin();
@@ -109,7 +109,7 @@ void GDriveManager::verify()
         else
         {
 
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
             if (m_currentSigninPopup)
                 m_currentSigninPopup->showVerify();
             showError("Verify", res.string().unwrapOrDefault());
@@ -174,7 +174,7 @@ arc::Future<std::string> GDriveManager::getFolderID(int slot, bool autoCreate)
             }
         }
         else
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
 
         // if all else fails just create the folder man
         if (!autoCreate)
@@ -203,7 +203,7 @@ arc::Future<std::string> GDriveManager::getFolderID(int slot, bool autoCreate)
             }
         }
         else
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
 
         latestID = "";
     }
@@ -248,7 +248,6 @@ void GDriveManager::loadData(const int slot)
     });
 
     m_loadListener.spawn(loadString(slot, req, loadLayer), [slot](bool ok) {
-        log::debug("{}", ok);
         if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
             popup->hideLoadLayer();
 
@@ -322,7 +321,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         else
         {
 
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
             co_await waitForMainThread([&res, slot, this] {
                 showError(fmt::format("Slot {} Save Failed ", slot), res.errorMessage().data(), false);
             });
@@ -362,7 +361,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
             }
         }
         else
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
 
         if (resumableURL.empty())
         {
@@ -507,7 +506,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     else
     {
 
-        log::warn("{}", res.error());
+        log::warn("{}", res.string());
         co_await waitForMainThread([&res, slot, this] {
             showError(fmt::format("Slot {} Load Failed ", slot), res.errorMessage().data(), false);
         });
@@ -538,7 +537,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
                                           size);
     }
     else
-        log::warn("{}", res.error());
+        log::warn("{}", res.string());
 
     co_await waitForMainThread([&loadLayer, this, slot] {
         if (loadLayer)
@@ -615,7 +614,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         }
         else
         {
-            log::warn("{}", res.error());
+            log::warn("{}", res.string());
             co_await waitForMainThread([&res, slot, this] {
                 showError(fmt::format("Slot {} load failed", slot), std::to_string(res.code()), false);
             });
@@ -752,7 +751,6 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
 
     auto req = web::WebRequest();
     req.param("access_token", token);
-
     web::WebResponse res;
 
     /* Gtet id.......*/
@@ -777,7 +775,7 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
     }
     else
     {
-        log::warn("{}", res.error());
+        log::warn("{}", res.string());
         co_return false;
     }
 
@@ -793,20 +791,24 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
         if (timestamp.empty() && size == 0)
             co_return false;
 
-        std::istringstream in(timestamp);
         std::tm tm;
-        in >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-        if (in.fail())
-            co_return false;
+        std::istringstream ss(timestamp);
+        ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
 
-        Mod::get()->setSavedValue<time_t>(
-            fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), std::mktime(&tm));
-        Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot),
-                                          size);
+        time_t localtime;
+        // lol
+#ifdef GEODE_IS_WINDOWS
+        localtime = _mkgmtime(&tm);
+#else
+        localtime = timegm(&tm);
+#endif
+
+        Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), localtime);
+        Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), size);
     }
     else
     {
-        log::warn("{}", res.error());
+        log::warn("{}", res.string());
         co_return false;
     }
 
@@ -869,7 +871,7 @@ arc::Future<std::string> GDriveManager::getAccessToken()
         }
     }
     else
-        log::warn("{}", res.error());
+        log::warn("{}", res.string());
 
     co_return GDriveEncypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
 }
@@ -902,7 +904,7 @@ arc::Future<std::string> GDriveManager::getEmail()
     }
     else
     {
-        log::warn("{}", res.error());
+        log::warn("{}", res.string());
         auto error = res.json()
                          .unwrapOrDefault()
                          .get<matjson::Value>("error")

@@ -1,4 +1,5 @@
 #include "GDriveEncrypt.hpp"
+
 #include "picosha2.h"
 #include "plusaes.hpp"
 
@@ -9,9 +10,9 @@ GDriveEncypt *GDriveEncypt::create()
     return ret;
 }
 
-EncStr GDriveEncypt::encryptString(const std::string &data)
+EncStr GDriveEncypt::encryptString(const std::string_view data)
 {
-    const std::string raw = data;
+    const std::string raw = data.data();
 
     std::vector<unsigned char> key(picosha2::k_digest_size);
     picosha2::hash256(getHardwareID(), key);
@@ -20,13 +21,10 @@ EncStr GDriveEncypt::encryptString(const std::string &data)
     unsigned char tag[16];
 
     // encrypt
-    bool error = plusaes::encrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(),
-                                      (const unsigned char (*)[12])iv.data(), &tag);
+    bool error = plusaes::encrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(), (const unsigned char (*)[12])iv.data(), &tag);
 
     if (error)
-    {
         return EncStr{};
-    }
 
     return {raw, iv, std::string(reinterpret_cast<const char *>(tag))};
 }
@@ -41,13 +39,10 @@ std::string GDriveEncypt::decryptString(const EncStr &data)
     picosha2::hash256(getHardwareID(), key);
 
     // decrypt
-    bool error = plusaes::decrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(),
-                                      (const unsigned char (*)[12])iv.data(), (const unsigned char (*)[16])tag.data());
+    bool error = plusaes::decrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(), (const unsigned char (*)[12])iv.data(), (const unsigned char (*)[16])tag.data());
 
     if (error)
-    {
         return "";
-    }
 
     return raw;
 }
@@ -58,6 +53,7 @@ std::string GDriveEncypt::decryptString(const EncStr &data)
 std::string GDriveEncypt::getHardwareID()
 {
     std::string hardwareID;
+
     /* Get GUID */
     std::array<char, 64> buffer{};
     DWORD size = buffer.size();
@@ -73,6 +69,7 @@ std::string GDriveEncypt::getHardwareID()
         }
         RegCloseKey(hKey);
     }
+    
     /* Get C Drive serial */
     DWORD serial = 0;
     GetVolumeInformationA("C:\\", nullptr, 0, &serial, nullptr, nullptr, nullptr, 0);
@@ -80,6 +77,7 @@ std::string GDriveEncypt::getHardwareID()
 
     return hardwareID;
 }
+
 #elif defined(GEODE_IS_ANDROID)
 #include <Geode/cocos/platform/android/jni/JniHelper.h>
 
@@ -109,6 +107,7 @@ std::string GDriveEncypt::getHardwareID()
 
     return hardwareID;
 }
+
 #elif defined(GEODE_IS_MACOS)
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>

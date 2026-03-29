@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #include <string>
 
+// Untested...
 std::string iosGetHardwareID()
 {
     @autoreleasepool

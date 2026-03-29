@@ -1,5 +1,5 @@
 #include "GDriveSigninPopup.hpp"
-
+#include <camila314.geode-uri/include/GeodeURI.hpp>
 #include "GDriveManager.hpp"
 #include "GDrivePopup.hpp"
 
@@ -128,4 +128,11 @@ void GDriveSigninPopup::finishUp()
 {
     GDrivePopup::create();
     this->onClose(this);
+}
+
+$on_mod(Loaded) {
+	URIEvent("alert").listen([](std::string_view path) {
+	    FLAlertLayer::create("Custom Alert", std::string(path), "Ok")->show();
+	    return true;
+	}).leak();
 }

@@ -10,6 +10,7 @@ class GDriveSigninPopup : public Popup
     void showVerify();
     void showSignin();
     void finishUp();
+    
   private:
     bool init() override;
     void onExitTransitionDidStart() override;

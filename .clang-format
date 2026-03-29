@@ -1,2 +1,4 @@
 BasedOnStyle: Microsoft
 AllowShortFunctionsOnASingleLine: None
+BreakStringLiterals: false
+ColumnLimit: 0

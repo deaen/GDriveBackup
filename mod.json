@@ -12,7 +12,8 @@
 	"developer": "deaen",
 	"description": "",
 	"dependencies": {
-		"geode.node-ids": ">=v1.20.0"
+		"geode.node-ids": ">=v1.20.0",
+		"camila314.geode-uri": ">= 2.0.0"
 	},
 	"resources": {
 		"sprites": [
@@ -25,7 +26,7 @@
 		"slot-count": {
 			"type": "int",
 			"name": "Save slots count",
-			"description": "Choose how many save slots are available.\n <cr>Note:</c> This settings is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
+			"description": "Choose how many save slots are available.\n <cr>Note:</c> This setting is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
 			"default": 9,
 			"min": 1,
 			"max": 999,

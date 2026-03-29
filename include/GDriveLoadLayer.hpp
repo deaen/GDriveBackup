@@ -4,18 +4,7 @@ using namespace geode::prelude;
 class GDriveLoadLayer : public FLAlertLayer
 {
   public:
-    static GDriveLoadLayer *create()
-    {
-        auto ret = new GDriveLoadLayer();
-        if (ret->init())
-        {
-            ret->autorelease();
-            return ret;
-        }
-
-        delete ret;
-        return nullptr;
-    }
+    static GDriveLoadLayer *create();
 
     void showPercentage(const size_t total);
     void setPercentage(const size_t progress);

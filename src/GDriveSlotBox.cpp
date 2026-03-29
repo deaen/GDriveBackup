@@ -18,7 +18,8 @@ GDriveSlotBox *GDriveSlotBox::create(int slot, float width, float height)
 void GDriveSlotBox::onExitTransitionDidStart()
 {
     GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Save, m_slot);
-    log::debug("hel");
+    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Metadata, m_slot);
+    
     CCNode::onExitTransitionDidStart();
 }
 

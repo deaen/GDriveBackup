@@ -44,6 +44,18 @@ void GDriveLoadLayer::registerWithTouchDispatcher()
                                                       CCTouchDispatcher::get()->getTargetPrio(), true);
 }
 
+GDriveLoadLayer *GDriveLoadLayer::create()
+{
+    auto ret = new GDriveLoadLayer();
+    if (ret->init())
+    {
+        ret->autorelease();
+        return ret;
+    }
+
+    delete ret;
+    return nullptr;
+}
 void GDriveLoadLayer::showPercentage(const size_t total)
 {
     m_total = total;
