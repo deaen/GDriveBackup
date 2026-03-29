@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 using namespace geode::prelude;
 #include "GDrivePopup.hpp"
+#include "GDriveEncrypt.hpp"
 #include <Geode/modify/MenuLayer.hpp>
 
 
@@ -26,6 +27,7 @@ class $modify(MyMenuLayer, MenuLayer)
     }
     void onMyButton(CCObject *)
     {
-        GDrivePopup::create();
+        // GDrivePopup::create();
+        FLAlertLayer::create("hardware id", GDriveEncypt::create()->getHardwareID(), "i see")->show();
     }
 };

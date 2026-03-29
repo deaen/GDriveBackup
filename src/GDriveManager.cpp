@@ -18,7 +18,7 @@ GDriveManager *GDriveManager::getInstance()
     return instance;
 }
 
-void GDriveManager::showError(const std::string &title, const std::string &error, bool invasive)
+void GDriveManager::showError(std::string_view title, std::string_view error, bool invasive)
 {
     if (invasive)
     {
@@ -26,13 +26,13 @@ void GDriveManager::showError(const std::string &title, const std::string &error
             "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your internet "
             "<cl>connection</c>.\nIf this keeps happening, please report this issue to the developer.";
         if (error != "")
-            body += "\n <cr>" + error + "</c>";
+            body += fmt::format("\n <cr>{}</c>", error);
 
-        FLAlertLayer::create((title + " Error").c_str(), body, "OK")->show();
+        FLAlertLayer::create(fmt::format("{} Error", title).c_str(), body, "OK")->show();
     }
     else
     {
-        Notification::create("GDrive Backup: " + title + " " + error, NotificationIcon::Error, 5.f)->show();
+        Notification::create(fmt::format("GDrive Backup: {} {}", title, error), NotificationIcon::Error, 5.f)->show();
     }
 }
 void GDriveManager::updateQueue(QueueType queueType)
@@ -124,7 +124,7 @@ void GDriveManager::signout(bool openAgain)
     m_metadataListener.cancel();
     m_saveQueue.clear();
     m_metadataQueue.clear();
-    
+
     if (m_currentPopup)
         m_currentPopup->removeFromParent();
     if (m_currentSigninPopup)
@@ -218,8 +218,9 @@ void GDriveManager::saveData(const int slot)
             m_saveQueue[slot]->setStatusPercentage(m_saveProgress);
     });
 
-    m_saveListener.spawn(saveString(GameManager::sharedState()->getCompressedSaveString() + "|" +
-                                        LocalLevelManager::sharedState()->getCompressedSaveString(),
+    m_saveListener.spawn(saveString(static_cast<std::string>(GameManager::sharedState()->getCompressedSaveString()) +
+                                        "|" +
+                                        static_cast<std::string>(GameManager::sharedState()->getCompressedSaveString()),
                                     slot, req),
                          [this, slot](bool ok) {
                              if (m_saveQueue[slot])
@@ -268,6 +269,7 @@ void GDriveManager::loadMetadata(const int slot)
             Mod::get()->setSavedValue<size_t>(
                 fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), 0);
         }
+
         if (m_metadataQueue[slot])
         {
             m_metadataQueue[slot]->setStatusVisiblity(false);
@@ -694,11 +696,11 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
 
         // load both strings
         auto gm = GameManager::sharedState();
-        std::string gms(strings[0]);
+        gd::string gms(strings[0].data());
         gm->loadFromCompressedString(gms);
 
         auto llm = LocalLevelManager::sharedState();
-        std::string llms(strings[1]);
+        gd::string llms(strings[1].data());
         llm->loadFromCompressedString(llms);
 
         // lets load em packs
@@ -792,14 +794,13 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
             co_return false;
 
         std::istringstream in(timestamp);
-        std::chrono::sys_time<std::chrono::milliseconds> tp;
-        in >> std::chrono::parse("%FT%TZ", tp);
+        std::tm tm;
+        in >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
         if (in.fail())
             co_return false;
 
         Mod::get()->setSavedValue<time_t>(
-            fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot),
-            std::chrono::system_clock::to_time_t(tp));
+            fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), std::mktime(&tm));
         Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot),
                                           size);
     }
@@ -967,8 +968,12 @@ GDriveManager::Status GDriveManager::checkStatus(QueueType queueType, GDriveSlot
 void GDriveManager::removeBoxPointer(QueueType queueType, const int slot)
 {
     auto *queue = (queueType == Save) ? &m_saveQueue : &m_metadataQueue;
-    if (queue->contains(slot))
-        queue->at(slot) = nullptr;
+    if (!queue->contains(slot))
+        return;
+
+    queue->at(slot) = nullptr;
+    if (queueType == Metadata)
+        removeFromQueue(Metadata, slot);
 }
 
 size_t GDriveManager::getSaveProgress()

@@ -66,7 +66,7 @@ class GDriveManager : public cocos2d::CCObject
     std::string m_uuid;
     time_t m_timestamp = 0;
 
-    void showError(const std::string &title = "GDriveBackup", const std::string &error = "", bool invasive = true);
+    void showError(const std::string_view title = "GDriveBackup", const std::string_view error = "", bool invasive = true);
 
     void updateQueue(QueueType queueType);
 

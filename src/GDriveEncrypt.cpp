@@ -39,7 +39,7 @@ std::string GDriveEncypt::decryptString(const EncStr &data)
 
     std::vector<unsigned char> key(picosha2::k_digest_size);
     picosha2::hash256(getHardwareID(), key);
-    
+
     // decrypt
     bool error = plusaes::decrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(),
                                       (const unsigned char (*)[12])iv.data(), (const unsigned char (*)[16])tag.data());
@@ -52,8 +52,9 @@ std::string GDriveEncypt::decryptString(const EncStr &data)
     return raw;
 }
 
-#ifdef GEODE_IS_WINDOWS
+#if defined(GEODE_IS_WINDOWS)
 #include <windows.h>
+
 std::string GDriveEncypt::getHardwareID()
 {
     std::string hardwareID;
@@ -77,6 +78,63 @@ std::string GDriveEncypt::getHardwareID()
     GetVolumeInformationA("C:\\", nullptr, 0, &serial, nullptr, nullptr, nullptr, 0);
     hardwareID += std::to_string(serial);
 
+    return hardwareID;
+}
+#elif defined(GEODE_IS_ANDROID)
+#include <Geode/cocos/platform/android/jni/JniHelper.h>
+
+std::string GDriveEncypt::getHardwareID()
+{
+    std::string hardwareID;
+    JniMethodInfo t;
+
+    if (JniHelper::getStaticMethodInfo(t, "com/customRobTop/BaseRobTopActivity", "getUserID", "()Ljava/lang/String;"))
+    {
+        jstring str = reinterpret_cast<jstring>(t.env->CallStaticObjectMethod(t.classID, t.methodID));
+        hardwareID = JniHelper::jstring2string(str);
+
+        t.env->DeleteLocalRef(t.classID);
+        t.env->DeleteLocalRef(str);
+    }
+    else
+    {
+        auto vm = cocos2d::JniHelper::getJavaVM();
+
+        JNIEnv *env;
+        if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_OK)
+        {
+            env->ExceptionClear();
+        }
+    }
+
+    return hardwareID;
+}
+#elif defined(GEODE_IS_MACOS)
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOKitLib.h>
+
+std::string GDriveEncypt::getHardwareID()
+{
+    std::string hardwareID;
+
+    io_service_t platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
+    if (!platformExpert)
+        return "";
+
+    CFTypeRef uuidCF = IORegistryEntryCreateCFProperty(platformExpert, CFSTR("IOPlatformUUID"), kCFAllocatorDefault, 0);
+
+    IOObjectRelease(platformExpert);
+    if (!uuidCF)
+        return "";
+
+    char buffer[256];
+
+    if (CFStringGetCString((CFStringRef)uuidCF, buffer, sizeof(buffer), kCFStringEncodingUTF8))
+    {
+        hardwareID = buffer;
+    }
+
+    CFRelease(uuidCF);
     return hardwareID;
 }
 #endif
