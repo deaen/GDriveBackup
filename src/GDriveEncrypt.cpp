@@ -117,7 +117,8 @@ std::string GDriveEncypt::getHardwareID()
 {
     std::string hardwareID;
 
-    io_service_t platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
+    io_service_t platformExpert =
+        IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
     if (!platformExpert)
         return "";
 
@@ -137,4 +138,10 @@ std::string GDriveEncypt::getHardwareID()
     CFRelease(uuidCF);
     return hardwareID;
 }
+
+#elif defined(GEODE_IS_IOS)
+extern "C" std::string iosGetHardwareID();
+
+std::string GDriveEncypt::getHardwareID() return iosGetHardwareID();
+
 #endif
