@@ -27,7 +27,7 @@ class $modify(MyMenuLayer, MenuLayer)
     }
     void onMyButton(CCObject *)
     {
-        // GDrivePopup::create();
-        FLAlertLayer::create("hardware id", GDriveEncypt::create()->getHardwareID(), "i see")->show();
+        GDrivePopup::create();
+        // FLAlertLayer::create("hardware id", GDriveEncypt::create()->getHardwareID(), "i see")->show();
     }
 };
