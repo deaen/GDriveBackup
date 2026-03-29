@@ -13,6 +13,11 @@ project(GDriveBackup VERSION 1.0.0)
 # Add all source files inside src (recursively)
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "iOS")
+    file(GLOB_RECURSE MM_SOURCES CONFIGURE_DEPENDS src/*.mm)
+    list(APPEND SOURCES ${MM_SOURCES})
+endif()
+
 # Set up the mod binary
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
