@@ -140,5 +140,8 @@ std::string GDriveEncypt::getHardwareID()
 }
 
 #elif defined(GEODE_IS_IOS)
-std::string GDriveEncypt::getHardwareID() return iosGetHardwareID();
+std::string GDriveEncypt::getHardwareID()
+{
+    return iosGetHardwareID();
+}
 #endif
