@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#include <string>
 
 std::string iosGetHardwareID()
 {
