@@ -1,4 +1,6 @@
-# <img src="logo.png" style="width:70px; vertical-align: middle;"> GDrive Backup
+<img src="logo.png" style="width:80px"/>
+
+# GDrive Backup
 **<cg>save & load</c> your data to <cy>Google Drive!</c>**
 
 ## <cj>Features:</c>
