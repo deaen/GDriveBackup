@@ -11,12 +11,12 @@ class GDriveSigninPopup : public Popup
     void showSignin();
     void finishUp();
     
+    void onVerify(CCObject *sender);
   private:
     bool init() override;
     void onExitTransitionDidStart() override;
 
     void onSignin(CCObject *sender);
-    void onVerify(CCObject *sender);
 
     CCMenu *m_buttonMenu;
     CCLabelBMFont *m_description;

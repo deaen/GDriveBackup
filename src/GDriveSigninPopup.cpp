@@ -1,5 +1,5 @@
 #include "GDriveSigninPopup.hpp"
-// #include <camila314.geode-uri/include/GeodeURI.hpp>
+
 #include "GDriveManager.hpp"
 #include "GDrivePopup.hpp"
 
@@ -36,9 +36,7 @@ bool GDriveSigninPopup::init()
     popupColumn->setID("popup-column"_spr);
 
     /*Description label*/
-    m_description = CCLabelBMFont::create(
-        "Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt",
-        popupColumn->getContentWidth() - 20.f, CCTextAlignment::kCCTextAlignmentCenter);
+    m_description = CCLabelBMFont::create("Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt", popupColumn->getContentWidth() - 20.f, CCTextAlignment::kCCTextAlignmentCenter);
     m_description->setID("description"_spr);
     popupColumn->addChild(m_description);
     /*Anchored Buttons Menu */
@@ -49,13 +47,11 @@ bool GDriveSigninPopup::init()
     m_buttonMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::Center));
 
     /* Mod Settings Button */
-    m_signinButton = CCMenuItemSpriteExtra::create(ButtonSprite::create("Sign in"), this,
-                                                   menu_selector(GDriveSigninPopup::onSignin));
+    m_signinButton = CCMenuItemSpriteExtra::create(ButtonSprite::create("Sign in"), this, menu_selector(GDriveSigninPopup::onSignin));
     m_signinButton->setID("signin-button"_spr);
     m_buttonMenu->addChild(m_signinButton);
 
-    m_verifyButton =
-        CCMenuItemSpriteExtra::create(ButtonSprite::create("Verify"), this, menu_selector(GDriveSigninPopup::onVerify));
+    m_verifyButton = CCMenuItemSpriteExtra::create(ButtonSprite::create("Verify"), this, menu_selector(GDriveSigninPopup::onVerify));
     m_verifyButton->setID("verify-button"_spr);
     m_verifyButton->setVisible(false);
     m_buttonMenu->addChild(m_verifyButton);
@@ -130,9 +126,16 @@ void GDriveSigninPopup::finishUp()
     this->onClose(this);
 }
 
-// $on_mod(Loaded) {
-// 	URIEvent("alert").listen([](std::string_view path) {
-// 	    FLAlertLayer::create("Custom Alert", std::string(path), "Ok")->show();
-// 	    return true;
-// 	}).leak();
-// }
+#ifdef GEODE_IS_DESKTOP
+#include <camila314.geode-uri/include/GeodeURI.hpp>
+$on_mod(Loaded)
+{
+    URIEvent("gdrivebackup").listen([](std::string_view path) {
+                                if (auto popup = GDriveManager::getInstance()->getCurrentSigninPopup())
+                                    if (path == "verify")
+                                        popup->onVerify(nullptr);
+                                return true;
+                            })
+        .leak();
+}
+#endif

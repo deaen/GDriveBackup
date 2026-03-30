@@ -19,7 +19,7 @@ class GDriveManager : public cocos2d::CCObject
     void loadMetadata(const int slot);
     void loadData(const int slot);
 
-    arc::Future<std::string> getFolderID(int slot, bool autoCreate = true);
+    arc::Future<std::string> getFolderID(const int slot, const bool autoCreate = true);
     arc::Future<bool> setMetadata(const int slot);
     arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
     arc::Future<bool> loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer);
@@ -83,4 +83,5 @@ class GDriveManager : public cocos2d::CCObject
 
     size_t m_loadProgress = 0;
     size_t m_loadTotal = 0;
+    constexpr static size_t m_chunkSize = 256 * 1024 * 256;
 };

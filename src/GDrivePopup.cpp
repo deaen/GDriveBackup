@@ -9,7 +9,7 @@
 
 GDrivePopup *GDrivePopup::create()
 {
-    if (Mod::get()->getSavedValue<std::array<std::string, 3>>("refresh_token")[0] == "")
+    if (Mod::get()->getSavedValue<std::array<std::string, 3>>("refresh_token")[0].empty())
     {
         GDriveSigninPopup::create()->show();
         return nullptr;
@@ -52,11 +52,8 @@ bool GDrivePopup::init()
 
     m_leftArrowButton = CCMenuItemSpriteExtra::create(leftArrowSpr, this, menu_selector(GDrivePopup::onSlotPageLeft));
     m_leftArrowButton->setID("left-arrow-button"_spr);
-    m_buttonMenu->addChildAtPosition(m_leftArrowButton, Anchor::Left,
-                                     {
-                                         (m_leftArrowButton->getContentWidth() / 2) + 7.f,
-                                         -13.f,
-                                     });
+    m_buttonMenu->addChildAtPosition(m_leftArrowButton, Anchor::Left, {(m_leftArrowButton->getContentWidth() / 2) + 7.f, -13.f});
+
     /* Right Arrow Button */
     auto rightArrowSpr = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
     rightArrowSpr->setScale(0.8f);
@@ -65,11 +62,7 @@ bool GDrivePopup::init()
     m_rightArrowButton =
         CCMenuItemSpriteExtra::create(rightArrowSpr, this, menu_selector(GDrivePopup::onSlotPageRight));
     m_rightArrowButton->setID("right-arrow-button"_spr);
-    m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right,
-                                     {
-                                         -(m_rightArrowButton->getContentWidth() / 2) - 7.f,
-                                         -13.f,
-                                     });
+    m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right, {-(m_rightArrowButton->getContentWidth() / 2) - 7.f, -13.f});
 
     /* Popup Column */
     auto popupColumn = CCMenu::create();
@@ -108,12 +101,14 @@ bool GDrivePopup::init()
         button->setTag(i);
         button->setID(fmt::format("page-button-{}"_spr, i));
         m_pageButtonsRow->addChild(button);
+
         // i dont fuckin care anymore
         if (i == m_currentSlotPage)
             button->setColor({255, 255, 255});
         else
             button->setColor({125, 125, 125});
     }
+
     m_pageButtonsRow->updateLayout();
     popupColumn->addChild(m_pageButtonsRow);
 
@@ -201,9 +196,7 @@ void GDrivePopup::onToggleAccountVisibility(CCObject *sender)
     else
         m_emailLabel->setCString(m_emailCensored.c_str());
 
-    m_hideEmailButton->setPosition({(m_emailButton->getPositionX() + (m_emailLabel->getScaledContentWidth() / 2.f) +
-                                     (m_hideEmailButton->getScaledContentWidth() / 2.f)),
-                                    (m_emailButton->getPositionY() + (m_emailLabel->getScaledContentHeight() / 4.f))});
+    m_hideEmailButton->setPosition({(m_emailLabel->getPositionX() + (m_emailLabel->getScaledContentWidth() / 2.f) + (m_hideEmailButton->getScaledContentWidth() / 2.f)), (m_emailLabel->getPositionY() + (m_emailLabel->getScaledContentHeight() / 4.f))});
     m_emailVisible = !m_emailVisible;
 }
 void GDrivePopup::onNameInfo(CCObject *sender)
@@ -212,18 +205,12 @@ void GDrivePopup::onNameInfo(CCObject *sender)
     FLAlertLayer::create(
         "Account info",
         (accID != 0)
-            ? fmt::format(
-                  "Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt "
-                  "GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty "
-                  "Cool!\nfolder ID: <cy>{}</c>",
-                  accID)
-            : fmt::format(
-                  "You are currently on an <cr>unregistered</c> account. Saving data while signed out will overwrite "
-                  "any other data you might have saved while signed out other sessions/devices.\nfolder ID: <cy>{}</c>",
-                  accID),
+            ? fmt::format("Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty Cool!\nfolder ID: <cy>{}</c>", accID)
+            : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will overwrite any other data you might have saved while signed out other sessions/devices.\nfolder ID: <cy>{}</c>", accID),
         "Okay")
         ->show();
 }
+
 void GDrivePopup::onSettings(CCObject *sender)
 {
     openSettingsPopup(Mod::get(), true);
@@ -233,24 +220,15 @@ void GDrivePopup::onSlotPageLeft(CCObject *sender)
 {
     showSlotPage(m_currentSlotPage - 1);
 }
+
 void GDrivePopup::onSlotPageRight(CCObject *sender)
 {
     showSlotPage(m_currentSlotPage + 1);
 }
+
 void GDrivePopup::onPageButton(CCObject *sender)
 {
     showSlotPage(sender->getTag());
-}
-void GDrivePopup::onSignOut(CCObject *sender)
-{
-    createQuickPopup(
-        "Google Account", fmt::format("Currently signed in as <cy>{}</c>\n Do you want to sign out?", m_email),
-        "Cancel", "Sign Out",
-        [](auto, bool btn2) {
-            if (btn2)
-                GDriveManager::getInstance()->signout(true);
-        },
-        true, true);
 }
 
 void GDrivePopup::setupEmail()
@@ -262,27 +240,23 @@ void GDrivePopup::setupEmail()
 
     async::spawn(GDriveManager::getInstance()->getEmail(), [this, spinner](std::string email) {
         spinner->setVisible(false);
-        if (email == "")
-        {
+        if (email.empty())
             return;
-        }
 
         m_email = email;
         auto vec = utils::string::split(email, "@");
         for (const auto &chr : vec[0])
-        {
             m_emailCensored += "•";
-        }
+
         m_emailCensored += "@" + vec[1];
 
-        /* email button */
+        /* email label */
         m_emailLabel = CCLabelBMFont::create(m_emailCensored.c_str(), "bigFont.fnt");
         m_emailLabel->setScale(0.4f);
-        m_emailButton = CCMenuItemSpriteExtra::create(m_emailLabel, this, menu_selector(GDrivePopup::onSignOut));
-        m_emailButton->setAnchorPoint({0.5f, 0.5f});
-        m_emailButton->setID("email-button"_spr);
-        m_emailButton->setPosition({m_buttonMenu->getContentWidth() / 2.f, 15.f});
-        m_buttonMenu->addChild(m_emailButton);
+        m_emailLabel->setAnchorPoint({0.5f, 0.5f});
+        m_emailLabel->setID("email-label"_spr);
+        m_emailLabel->setPosition({m_buttonMenu->getContentWidth() / 2.f, 15.f});
+        m_buttonMenu->addChild(m_emailLabel);
 
         /* Hide Email Button */
         m_hideEmailButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("hideBtn_001.png"), this,
@@ -292,10 +266,7 @@ void GDrivePopup::setupEmail()
         m_hideEmailButton->m_baseScale = 0.5f;
         m_hideEmailButton->setScale(0.5f);
         m_hideEmailButton->setAnchorPoint({0.5f, 0.5f});
-        m_hideEmailButton->setPosition(
-            {(m_emailButton->getPositionX() + (m_emailLabel->getScaledContentWidth() / 2.f) +
-              (m_hideEmailButton->getScaledContentWidth() / 2.f)),
-             (m_emailButton->getPositionY() + (m_emailLabel->getScaledContentHeight() / 4.f))});
+        m_hideEmailButton->setPosition({(m_emailLabel->getPositionX() + (m_emailLabel->getScaledContentWidth() / 2.f) + (m_hideEmailButton->getScaledContentWidth() / 2.f)), (m_emailLabel->getPositionY() + (m_emailLabel->getScaledContentHeight() / 4.f))});
         m_buttonMenu->addChild(m_hideEmailButton);
     });
 }
@@ -326,22 +297,16 @@ void GDrivePopup::showSlotPage(int pageNumber)
         for (auto *child : buttons)
         {
             if (child->getTag() == pageNumber)
-            {
                 child->setColor({255, 255, 255});
-            }
             else
-            {
                 child->setColor({125, 125, 125});
-            }
         }
     }
     for (int i = ((pageNumber - 1) * m_slotsPerPage + 1); i <= (std::min(pageNumber * m_slotsPerPage, slotCount)); ++i)
     {
         int vecdex = i - 1;
         if (m_slotBoxes.size() <= vecdex)
-        {
             m_slotBoxes.resize(i);
-        }
 
         if (!m_slotBoxes[vecdex])
         {
@@ -349,9 +314,7 @@ void GDrivePopup::showSlotPage(int pageNumber)
             m_slotRow->addChild(m_slotBoxes[vecdex]);
         }
         else
-        {
             m_slotBoxes[vecdex]->setVisible(true);
-        }
     }
 
     m_slotRow->updateLayout();
@@ -368,29 +331,19 @@ GDriveLoadLayer *GDrivePopup::showLoadLayer()
 
     return m_loadingLayer;
 }
+
 void GDrivePopup::hideLoadLayer()
 {
     this->setKeypadEnabled(true);
-    
+
     if (m_loadingLayer)
         m_loadingLayer->removeFromParent();
 }
 
-/* Banished to comment zone #FuckTouchPriority */
-
-// $execute
-// {
-//     listenForAllSettingChanges([](std::string_view key, std::shared_ptr<SettingV3> setting) {
-//         if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
-//         {
-//             int zOrder = popup->getZOrder();
-//             int touchPrio = popup->getTouchPriority();
-//             popup->removeFromParent();
-//             if (auto newPopup = GDrivePopup::create())
-//             {
-//                  newPopup->setZOrder(zOrder);
-//                  newPopup->setTouchPriority(touchPrio);
-//             }
-//         }
-//     });
-// }
+$execute
+{
+    listenForSettingChanges<int>("slot-count", [](int count) {
+        if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
+            popup->removeFromParent();
+    });
+}

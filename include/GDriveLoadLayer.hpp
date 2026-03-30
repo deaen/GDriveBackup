@@ -6,10 +6,10 @@ class GDriveLoadLayer : public FLAlertLayer
   public:
     static GDriveLoadLayer *create();
 
-    void showPercentage(const size_t total);
     void setPercentage(const size_t progress);
-    void hidePercentage();
     void setMessage(const std::string_view message);
+    void showPercentage(const size_t total);
+    void hidePercentage();
 
   private:
     bool init() override;

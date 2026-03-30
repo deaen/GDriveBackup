@@ -12,7 +12,15 @@
 	"developer": "deaen",
 	"description": "",
 	"dependencies": {
-		"geode.node-ids": ">=v1.20.0"
+		"geode.node-ids": ">=v1.20.0",
+		"camila314.geode-uri": {
+			"platforms": [
+				"win",
+				"mac"
+			],
+			"required": false,
+			"version": ">=v2.0.0"
+		}
 	},
 	"resources": {
 		"sprites": [
@@ -22,10 +30,17 @@
 		]
 	},
 	"settings": {
+		"signout-button": {
+			"type": "custom:signout-button"
+		},
+		"ui-title": {
+			"type": "title",
+			"name": "UI Settings"
+		},
 		"slot-count": {
 			"type": "int",
 			"name": "Save slots count",
-			"description": "Choose how many save slots are available.\n <cr>Note:</c> This setting is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
+			"description": "Choose how many save slots are available. <cr>Note:</c> This setting is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
 			"default": 9,
 			"min": 1,
 			"max": 999,
@@ -35,6 +50,21 @@
 				"slider": false,
 				"input": true
 			}
+		},
+		"bottom-button": {
+			"type": "bool",
+			"name": "Main menu shortcut button",
+			"description": "<cg>adds</cg> a button for GDrive Backup to the bottom of the main menu. (next to the geode button)",
+			"default": false
 		}
+	},
+	"tags": [
+		"enhancement",
+		"online",
+		"utility"
+	],
+	"links": {
+		"homepage": "https://deaen.github.io",
+		"source": "https://github.com/deaen/GDriveBackup"
 	}
 }

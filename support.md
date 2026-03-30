@@ -1,1 +1,1 @@
-Edit this file to change your mod's support info, or delete it if you don't need it.
+if u really like this mod you can help me out with a lil [ko-fi]("https://ko-fi.com/deaen") :)
