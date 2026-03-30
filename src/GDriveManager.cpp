@@ -1,9 +1,14 @@
 #include "GDriveManager.hpp"
 
+#include <Geode/binding/LocalLevelManager.hpp>
 #include <Geode/utils/base64.hpp>
 #include <ctime>
 
 #include "GDriveEncrypt.hpp"
+
+#ifdef GEODE_IS_ANDROID
+#include <Geode/cocos/platform/android/jni/JniHelper.h>
+#endif
 
 GDriveManager *GDriveManager::getInstance()
 {
@@ -16,6 +21,30 @@ GDriveManager::GDriveManager()
     m_saveListener.setName("gdrive-save-listener");
     m_metadataListener.setName("gdrive-metadata-listener");
     m_loadListener.setName("gdrive-load-listener");
+
+// Get the android hardware ID and store in here to avoid all the threading nonsense
+#ifdef GEODE_IS_ANDROID
+    JniMethodInfo t;
+    JniHelper::getJavaVM()->AttachCurrentThread(&t.env, nullptr);
+    if (JniHelper::getStaticMethodInfo(t, "com/customRobTop/BaseRobTopActivity", "getUserID", "()Ljava/lang/String;"))
+    {
+        jstring str = reinterpret_cast<jstring>(t.env->CallStaticObjectMethod(t.classID, t.methodID));
+        m_androidID = JniHelper::jstring2string(str);
+
+        t.env->DeleteLocalRef(t.classID);
+        t.env->DeleteLocalRef(str);
+    }
+    else
+    {
+        auto vm = cocos2d::JniHelper::getJavaVM();
+
+        JNIEnv *env;
+        if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_OK)
+        {
+            env->ExceptionClear();
+        }
+    }
+#endif
 }
 
 void GDriveManager::showError(std::string_view title, std::string_view error, bool invasive)
@@ -201,7 +230,7 @@ void GDriveManager::saveData(const int slot)
             m_saveQueue[slot]->setStatusPercentage(m_saveProgress + p.uploaded());
     });
 
-    m_saveListener.spawn(saveString(static_cast<std::string>(GameManager::sharedState()->getCompressedSaveString()) + "|" + static_cast<std::string>(GameManager::sharedState()->getCompressedSaveString()), slot, req), [this, slot](bool ok) {
+    m_saveListener.spawn(saveString(static_cast<std::string>(GameManager::sharedState()->getCompressedSaveString()) + "|" + static_cast<std::string>(LocalLevelManager::sharedState()->getCompressedSaveString()), slot, req), [this, slot](bool ok) {
         if (m_saveQueue[slot])
         {
             m_saveQueue[slot]->setStatusVisiblity(false);

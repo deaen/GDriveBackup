@@ -69,7 +69,7 @@ std::string GDriveEncypt::getHardwareID()
         }
         RegCloseKey(hKey);
     }
-    
+
     /* Get C Drive serial */
     DWORD serial = 0;
     GetVolumeInformationA("C:\\", nullptr, 0, &serial, nullptr, nullptr, nullptr, 0);
@@ -79,33 +79,12 @@ std::string GDriveEncypt::getHardwareID()
 }
 
 #elif defined(GEODE_IS_ANDROID)
+#include "GDriveManager.hpp"
 #include <Geode/cocos/platform/android/jni/JniHelper.h>
 
 std::string GDriveEncypt::getHardwareID()
 {
-    std::string hardwareID;
-    JniMethodInfo t;
-
-    if (JniHelper::getStaticMethodInfo(t, "com/customRobTop/BaseRobTopActivity", "getUserID", "()Ljava/lang/String;"))
-    {
-        jstring str = reinterpret_cast<jstring>(t.env->CallStaticObjectMethod(t.classID, t.methodID));
-        hardwareID = JniHelper::jstring2string(str);
-
-        t.env->DeleteLocalRef(t.classID);
-        t.env->DeleteLocalRef(str);
-    }
-    else
-    {
-        auto vm = cocos2d::JniHelper::getJavaVM();
-
-        JNIEnv *env;
-        if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_OK)
-        {
-            env->ExceptionClear();
-        }
-    }
-
-    return hardwareID;
+    return GDriveManager::getInstance()->m_androidID.data();
 }
 
 #elif defined(GEODE_IS_MACOS)

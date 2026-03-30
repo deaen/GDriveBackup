@@ -21,12 +21,14 @@ class GDriveSlotBox : public CCNode
     CCMenu *m_menu;
     CCLabelBMFont* m_slotTitle;
     CCNode *m_infoRow;
+    CCNode *m_timeColumn;
     NineSlice *m_separator;
     CCMenuItemSpriteExtra *m_saveButton;
     ButtonSprite* m_saveButtonSprite;
     ButtonSprite* m_loadButtonSprite;
     CCMenuItemSpriteExtra *m_loadButton;
 
+    CCLabelBMFont *m_dateLabel;
     CCLabelBMFont *m_timeLabel;
     CCLabelBMFont *m_sizeLabel;
 

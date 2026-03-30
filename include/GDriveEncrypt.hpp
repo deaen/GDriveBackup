@@ -10,7 +10,7 @@ class GDriveEncypt : public CCObject
 
     EncStr encryptString(const std::string_view data); // returns: {raw, iv, tag}
     std::string decryptString(const EncStr &data);
-
+std::string getHardwareID();
   private:
-    std::string getHardwareID();
+    
 };

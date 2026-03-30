@@ -1,23 +1,17 @@
-# GDriveBackup
-This is where she makes a mod.
+# <img src="logo.png" style="width:70px; vertical-align: middle;"> GDrive Backup
+**<cg>save & load</c> your data to <cy>Google Drive!</c>**
 
-<img src="logo.png" width="150" alt="the mod's logo" />
+## <cj>Features:</c>
+- **Backup and load your data to Google Drive!**
+- **No file size limits!**
+- **Infinite save slots!**
+- **Unique slots for each GD account!**
+- **Super simple Google Sign in!**
 
-*Update logo.png to change your mod's icon (please)*
+#### you can find the mod in the account menu in GD's settings!
 
-## Getting started
-We recommend heading over to [the getting started section on our docs](https://docs.geode-sdk.org/getting-started/) for useful info on what to do next.
+## <co>Contact:</c>
+Please report any issues on GitHub, or just contact me on one of the socials on my website. <cl>(discord/twitter prefered)</c>
 
-## Build instructions
-For more info, see [our docs](https://docs.geode-sdk.org/getting-started/create-mod#build)
-```sh
-# Assuming you have the Geode CLI set up already
-geode build
-```
-
-# Resources
-* [Geode SDK Documentation](https://docs.geode-sdk.org/)
-* [Geode SDK Source Code](https://github.com/geode-sdk/geode/)
-* [Geode CLI](https://github.com/geode-sdk/cli)
-* [Bindings](https://github.com/geode-sdk/bindings/)
-* [Dev Tools](https://github.com/geode-sdk/DevTools)
+## <cd>Credits:</c>
+Thanks to camila314 for the [Geode URI API](https://github.com/camila314/geode-uri)!
