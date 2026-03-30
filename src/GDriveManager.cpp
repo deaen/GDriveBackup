@@ -695,10 +695,23 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         am->m_dontNotify = oldDontNotify;
         gsm->m_skipIncrementChallenge = oldSkipIncrementChallenge;
 
-        // set the colors cuz they break sometimes lol
+        // set tverything cuz they break sometimes lol
+
+        gm->m_playerFrame = gs.getIntegerForKey("playerFrame");
+        gm->m_playerShip = gs.getIntegerForKey("playerShip");
+        gm->m_playerBall = gs.getIntegerForKey("playerBall");
+        gm->m_playerBird = gs.getIntegerForKey("playerBird");
+        gm->m_playerDart = gs.getIntegerForKey("playerDart");
+        gm->m_playerRobot = gs.getIntegerForKey("playerRobot");
+        gm->m_playerSpider = gs.getIntegerForKey("playerSpider");
+        gm->m_playerSwing = gs.getIntegerForKey("playerSwing");
         gm->m_playerColor = gs.getIntegerForKey("playerColor");
         gm->m_playerColor2 = gs.getIntegerForKey("playerColor2");
         gm->m_playerGlowColor = (gs.getIntegerForKey("playerColor3") == -1) ? gs.getIntegerForKey("playerColor2") : gs.getIntegerForKey("playerColor3");
+        gm->m_playerStreak = gs.getIntegerForKey("playerStreak");
+        gm->m_playerShipFire = gs.getIntegerForKey("playerShipStreak");
+        gm->m_playerDeathEffect = gs.getIntegerForKey("playerDeathEffect");
+        gm->m_playerJetpack = gs.getIntegerForKey("playerJetpack");
         gm->m_playerGlow = gs.getBoolForKey("playerGlow");
     });
 
