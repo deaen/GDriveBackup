@@ -1,7 +1,11 @@
-<img src="logo.png" style="width:80px"/>
+<img src="logo.png" style="width:100px"/>
 
 # GDrive Backup
 **<cg>save & load</c> your data to <cy>Google Drive!</c>**
+
+<p align="center">
+<img src="preview.png" style="width:600px"/>
+</p>
 
 ## <cj>Features:</c>
 - **Backup and load your data to Google Drive!**

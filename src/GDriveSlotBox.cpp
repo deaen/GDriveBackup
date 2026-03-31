@@ -99,7 +99,7 @@ bool GDriveSlotBox::init(int slot, float width, float height)
 
     /* Time Column */
     m_timeColumn = CCNode::create();
-    m_timeColumn->setLayout(ColumnLayout::create()->setAutoScale(true)->setCrossAxisLineAlignment(AxisAlignment::Start));
+    m_timeColumn->setLayout(ColumnLayout::create()->setAutoScale(true)->setCrossAxisLineAlignment(AxisAlignment::Start)->setGap(0));
     m_timeColumn->setContentHeight(25.f);
     m_timeColumn->setAnchorPoint({0.5f, 0.5f});
     m_timeColumn->setID("time-column"_spr);
@@ -293,6 +293,7 @@ void GDriveSlotBox::onLoad(CCObject *sender)
         },
         true, true);
 }
+
 void GDriveSlotBox::onCancel(CCObject *onCancel)
 {
     createQuickPopup(
@@ -322,8 +323,6 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusSpinner->setVisible(true);
         m_statusSpinner->setContentSize({60.f, 60.f});
         m_statusSpinner->updateLayout();
-
-        m_menu->updateLayout();
     }
     else
     {
@@ -335,10 +334,11 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusPercentage->setVisible(false);
         m_statusSpinner->setVisible(false);
         m_statusCancel->setVisible(false);
-
-        m_menu->updateLayout();
     }
+
+    m_menu->updateLayout();
 }
+
 void GDriveSlotBox::updateInfo()
 {
     auto savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, m_slot));
@@ -355,26 +355,23 @@ void GDriveSlotBox::updateInfo()
         m_loadButton->setEnabled(false);
         m_loadButtonSprite->setOpacity(175);
         m_loadButtonSprite->setColor(ccGRAY);
-
-        m_timeColumn->updateLayout();
-        m_infoRow->updateLayout();
-        return;
     }
+    else
+    {
+        auto time = localtime(savedTimestamp);
+        m_timeLabel->setCString(fmt::format("{:%-I:%M %p}", time).c_str());
+        m_timeLabel->setVisible(true);
 
-    auto time = localtime(savedTimestamp);
-    m_timeLabel->setCString(fmt::format("{:%-I:%M %p}", time).c_str());
-    m_timeLabel->setVisible(true);
+        m_dateLabel->setCString(fmt::format("{:%b %-d, %Y}", time).c_str());
+        m_sizeLabel->setCString(fmt::format("{:.2f}MB", savedSize / (1024.f * 1024.f)).c_str());
 
-    m_dateLabel->setCString(fmt::format("{:%b %-d, %Y}", time).c_str());
-    m_sizeLabel->setCString(fmt::format("{:.2f}MB", savedSize / (1024.f * 1024.f)).c_str());
-
-    m_loadButton->setEnabled(true);
-    m_loadButtonSprite->setOpacity(255);
-    m_loadButtonSprite->setColor({255, 255, 255});
+        m_loadButton->setEnabled(true);
+        m_loadButtonSprite->setOpacity(255);
+        m_loadButtonSprite->setColor({255, 255, 255});
+    }
 
     m_timeColumn->updateLayout();
     m_infoRow->updateLayout();
-
     m_menu->updateLayout();
 }
 

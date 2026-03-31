@@ -81,9 +81,17 @@ class GDriveSettingsButtonNode : public SettingNodeV3
         createQuickPopup(
             "Google Account", "Do you want to sign out of GDrive Backup?\n<cy>Note:</c> This does <cg>not</c> delete your saved data.",
             "Cancel", "Sign Out",
-            [](auto, bool btn2) {
+            [this](auto, bool btn2) {
                 if (btn2)
+                {
                     GDriveManager::getInstance()->signout(false);
+
+                    m_button->setEnabled(false);
+                    m_buttonSprite->setCascadeColorEnabled(true);
+                    m_buttonSprite->setCascadeOpacityEnabled(true);
+                    m_buttonSprite->setOpacity(155);
+                    m_buttonSprite->setColor(ccGRAY);
+                }
             },
             true, true);
     }

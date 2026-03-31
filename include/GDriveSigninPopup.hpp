@@ -18,6 +18,7 @@ class GDriveSigninPopup : public Popup
 
     void onSignin(CCObject *sender);
 
+    CCMenu* m_popupColumn;
     CCMenu *m_buttonMenu;
     CCLabelBMFont *m_description;
     CCMenuItemSpriteExtra *m_signinButton;
