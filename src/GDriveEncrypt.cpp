@@ -84,7 +84,7 @@ std::string GDriveEncypt::getHardwareID()
 
 std::string GDriveEncypt::getHardwareID()
 {
-    return GDriveManager::getInstance()->m_androidID.data();
+    return GDriveManager::getInstance()->m_androidID;
 }
 
 #elif defined(GEODE_IS_MACOS)

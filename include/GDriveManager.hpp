@@ -59,7 +59,7 @@ class GDriveManager : public cocos2d::CCObject
     size_t getLoadProgress();
     size_t getLoadTotal();
 
-    std::string_view m_androidID;
+    std::string m_androidID;
   private:
     GDriveManager();
 
