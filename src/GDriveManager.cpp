@@ -51,7 +51,7 @@ void GDriveManager::showError(std::string_view title, std::string_view error, bo
 {
     if (invasive)
     {
-        std::string body = "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your internet <cl>connection</c>.\nIf this keeps happening, please report this issue to the developer.";
+        std::string body = "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your  <cl>internet connection</c>.\nIf this keeps happening, please report the issue to the developer.";
         if (error != "")
             body += fmt::format("\n <cr>{}</c>", error);
 
@@ -93,7 +93,7 @@ void GDriveManager::signin()
         if (m_currentSigninPopup)
             m_currentSigninPopup->showSignin();
 
-        showError("Sign in", res.string().unwrapOrDefault());
+        showError("Sign in", std::to_string(res.code()));
     });
 }
 
@@ -124,7 +124,7 @@ void GDriveManager::verify()
             if (m_currentSigninPopup)
                 m_currentSigninPopup->showVerify();
 
-            showError("Verify", res.string().unwrapOrDefault());
+            showError("Verify", std::to_string(res.code()));
         }
     });
 }
