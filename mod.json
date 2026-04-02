@@ -8,7 +8,7 @@
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDrive Backup",
-	"version": "v1.0.1",
+	"version": "v1.0.2",
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {

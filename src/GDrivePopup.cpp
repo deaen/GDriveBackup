@@ -206,7 +206,7 @@ void GDrivePopup::onNameInfo(CCObject *sender)
         "Account info",
         (accID != 0)
             ? fmt::format("Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty Cool!\nfolder ID: <cy>{}</c>", accID)
-            : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will overwrite any other data you might have saved while signed out other sessions/devices.\nfolder ID: <cy>{}</c>", accID),
+            : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will <cr>overwrite</c> any other data you might have saved while signed out on other sessions/devices.\nfolder ID: <cy>{}</c>", accID),
         "Okay")
         ->show();
 }

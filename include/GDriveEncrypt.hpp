@@ -13,5 +13,5 @@ class GDriveEncypt : public CCObject
     std::string decryptString(const EncStr &data);
 
   private:
-    std::string getHardwareID();
+    std::string getHardwareID(); // gets hwid depending on platform
 };

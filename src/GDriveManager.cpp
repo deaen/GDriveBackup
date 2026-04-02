@@ -93,7 +93,7 @@ void GDriveManager::signin()
         if (m_currentSigninPopup)
             m_currentSigninPopup->showSignin();
 
-        showError("Sign in", std::to_string(res.code()));
+        showError("Sign in", fmt::format("Error code: {}", res.code()));
     });
 }
 
@@ -124,7 +124,7 @@ void GDriveManager::verify()
             if (m_currentSigninPopup)
                 m_currentSigninPopup->showVerify();
 
-            showError("Verify", std::to_string(res.code()));
+            showError("Verify", fmt::format("Error code: {}", res.code()));
         }
     });
 }
@@ -321,7 +321,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         {
             log::warn("{}", res.code());
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Save Failed ", slot), std::to_string(res.code()), false);
+                showError(fmt::format("Slot {} Save Failed ", slot), fmt::format("Error code: {}", res.code()), false);
             });
             co_return false;
         }
@@ -362,7 +362,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         if (resumableURL.empty())
         {
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Save Failed", slot), std::to_string(res.code()), false);
+                showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
             });
             co_return false;
         }
@@ -408,7 +408,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                 {
                     // assume the worst.
                     co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} Save Failed", slot), std::to_string(res.code()), false);
+                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
                     });
                     co_return false;
                 }
@@ -422,7 +422,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                     if (r == 0)
                     {
                         co_await waitForMainThread([&res, slot, this] {
-                            showError(fmt::format("Slot {} Save Failed", slot), std::to_string(res.code()), false);
+                            showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
                         });
                         co_return false;
                     }
@@ -431,7 +431,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                 else
                 {
                     co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} Save Failed", slot), std::to_string(res.code()), false);
+                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
                     });
                     co_return false;
                 }
@@ -497,7 +497,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
 
         log::warn("{}", res.code());
         co_await waitForMainThread([&res, slot, this] {
-            showError(fmt::format("Slot {} Load Failed ", slot), std::to_string(res.code()), false);
+            showError(fmt::format("Slot {} Load Failed ", slot), fmt::format("Error code: {}", res.code()), false);
         });
         co_return false;
     }
@@ -514,7 +514,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         if (size == 0)
         {
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Load Failed ", slot), std::to_string(res.code()), false);
+                showError(fmt::format("Slot {} Load Failed ", slot), fmt::format("Error code: {}", res.code()), false);
             });
             co_return false;
         }
@@ -590,7 +590,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
             {
                 // assume the worst.
                 co_await waitForMainThread([&res, slot, this] {
-                    showError(fmt::format("Slot {} timeout reached", slot), std::to_string(res.code()), false);
+                    showError(fmt::format("Slot {} timeout reached", slot), fmt::format("Error code: {}", res.code()), false);
                 });
                 co_return false;
             }
@@ -599,7 +599,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         {
             log::warn("{}", res.code());
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} load failed", slot), std::to_string(res.code()), false);
+                showError(fmt::format("Slot {} load failed", slot), fmt::format("Error code: {}", res.code()), false);
             });
             co_return false;
         }
@@ -891,7 +891,7 @@ arc::Future<std::string> GDriveManager::getEmail()
                          .get<matjson::Value>("error")
                          .unwrapOrDefault()
                          .get<std::string>("status")
-                         .unwrapOr(std::to_string(res.code()));
+                         .unwrapOr(fmt::format("Error code: {}", res.code()));
         showError("Email", error);
     }
 

@@ -12,7 +12,7 @@ GDriveEncypt *GDriveEncypt::create()
 
 EncStr GDriveEncypt::encryptString(const std::string_view data)
 {
-    const std::string raw = data.data();
+    std::string raw = data.data();
 
     std::vector<unsigned char> key(picosha2::k_digest_size);
     picosha2::hash256(getHardwareID(), key);
@@ -21,7 +21,7 @@ EncStr GDriveEncypt::encryptString(const std::string_view data)
     unsigned char tag[16];
 
     // encrypt
-    bool error = plusaes::encrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(), (const unsigned char (*)[12])iv.data(), &tag);
+    bool error = plusaes::encrypt_gcm(reinterpret_cast<unsigned char *>(raw.data()), raw.size(), nullptr, 0, &key[0], key.size(), reinterpret_cast<const unsigned char (*)[12]>(iv.data()), &tag);
 
     if (error)
         return EncStr{};
@@ -31,7 +31,7 @@ EncStr GDriveEncypt::encryptString(const std::string_view data)
 
 std::string GDriveEncypt::decryptString(const EncStr &data)
 {
-    const std::string raw = data[0];
+    std::string raw = data[0];
     const std::string iv = data[1];
     const std::string tag = data[2];
 
@@ -39,7 +39,7 @@ std::string GDriveEncypt::decryptString(const EncStr &data)
     picosha2::hash256(getHardwareID(), key);
 
     // decrypt
-    bool error = plusaes::decrypt_gcm((unsigned char *)raw.data(), raw.size(), nullptr, 0, &key[0], key.size(), (const unsigned char (*)[12])iv.data(), (const unsigned char (*)[16])tag.data());
+    bool error = plusaes::decrypt_gcm(reinterpret_cast<unsigned char *>(raw.data()), raw.size(), nullptr, 0, &key[0], key.size(), reinterpret_cast<const unsigned char (*)[12]>(iv.data()), reinterpret_cast<const unsigned char (*)[16]>(tag.data()));
 
     if (error)
         return "";
@@ -62,7 +62,7 @@ std::string GDriveEncypt::getHardwareID()
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", 0, KEY_READ | KEY_WOW64_64KEY, &hKey) ==
         ERROR_SUCCESS)
     {
-        if (RegQueryValueExA(hKey, "MachineGuid", nullptr, nullptr, (LPBYTE)buffer.data(), &size) == ERROR_SUCCESS)
+        if (RegQueryValueExA(hKey, "MachineGuid", nullptr, nullptr, reinterpret_cast<LPBYTE>(buffer.data()), &size) == ERROR_SUCCESS)
         {
             RegCloseKey(hKey);
             hardwareID += std::string(buffer.data());
@@ -95,8 +95,8 @@ std::string GDriveEncypt::getHardwareID()
 {
     std::string hardwareID;
 
-    io_service_t platformExpert =
-        IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
+    io_service_t platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
+    
     if (!platformExpert)
         return "";
 
@@ -108,7 +108,7 @@ std::string GDriveEncypt::getHardwareID()
 
     char buffer[256];
 
-    if (CFStringGetCString((CFStringRef)uuidCF, buffer, sizeof(buffer), kCFStringEncodingUTF8))
+    if (CFStringGetCString(reinterpret_cast<CFStringRef>(uuidCF), buffer, sizeof(buffer), kCFStringEncodingUTF8))
     {
         hardwareID = buffer;
     }

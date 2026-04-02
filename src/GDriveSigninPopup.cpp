@@ -19,7 +19,7 @@ GDriveSigninPopup *GDriveSigninPopup::create()
 
 bool GDriveSigninPopup::init()
 {
-    if (!Popup::init(320.f, 150.f, "square01_001.png"))
+    if (!Popup::init(330.f, 160.f, "square01_001.png"))
         return false;
     GDriveManager::getInstance()->setCurrentSigninPopup(this);
     this->setID("gdrive-sign-in-popup"_spr);
@@ -41,7 +41,7 @@ bool GDriveSigninPopup::init()
     m_popupColumn->addChild(title);
 
     /*Description label*/
-    m_description = CCLabelBMFont::create("Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt", m_popupColumn->getContentWidth() - 10.f, CCTextAlignment::kCCTextAlignmentCenter);
+    m_description = CCLabelBMFont::create("Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt", m_popupColumn->getContentWidth() - 20.f, CCTextAlignment::kCCTextAlignmentCenter);
     m_description->setID("description"_spr);
     m_popupColumn->addChild(m_description);
 
@@ -94,7 +94,7 @@ void GDriveSigninPopup::showLoading()
 {
     if (!m_loadingCircle)
     {
-        m_loadingCircle = LoadingSpinner::create(35.f);
+        m_loadingCircle = LoadingSpinner::create(30.f);
         m_buttonMenu->addChild(m_loadingCircle);
     }
     m_loadingCircle->setVisible(true);
@@ -142,9 +142,11 @@ void GDriveSigninPopup::finishUp()
 $on_mod(Loaded)
 {
     URIEvent("gdrivebackup").listen([](std::string_view path) {
-                                if (auto popup = GDriveManager::getInstance()->getCurrentSigninPopup())
-                                    if (path == "verify")
+                                if (path == "verify")
+                                {
+                                    if (auto popup = GDriveManager::getInstance()->getCurrentSigninPopup())
                                         popup->onVerify(nullptr);
+                                }
                                 return true;
                             })
         .leak();

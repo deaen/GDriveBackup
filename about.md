@@ -11,7 +11,7 @@
 ##### you can find the mod in the account menu in GD's settings!
 ---
 ## <co>Contact:</c>
-Please report any issues on GitHub, or just contact me on one of the socials on my website. <cl>(discord/twitter prefered)</c>
+Please report any issues on GitHub, or just contact me on one of the socials on my website. <cl>(discord/twitter preferred)</c>
 
 ---
 ## <cd>Credits:</c>
