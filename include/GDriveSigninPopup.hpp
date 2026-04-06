@@ -15,6 +15,7 @@ class GDriveSigninPopup : public Popup
   private:
     bool init() override;
     void onExitTransitionDidStart() override;
+    void onClose(CCObject *sender) override;
 
     void onSignin(CCObject *sender);
 

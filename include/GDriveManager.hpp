@@ -65,8 +65,8 @@ class GDriveManager : public cocos2d::CCObject
 
     GDrivePopup *m_currentPopup = nullptr;
     GDriveSigninPopup *m_currentSigninPopup = nullptr;
-    std::string m_uuid;
-    time_t m_timestamp = 0;
+    // std::string m_uuid;
+    // time_t m_timestamp = 0;
 
     void showError(const std::string_view title = "GDriveBackup", const std::string_view error = "", bool invasive = true);
 

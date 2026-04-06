@@ -62,11 +62,21 @@ bool GDriveSigninPopup::init()
     m_verifyButton->setVisible(false);
     m_buttonMenu->addChild(m_verifyButton);
 
+    m_loadingCircle = LoadingSpinner::create(30.f);
+    m_loadingCircle->setID("signin-loading"_spr);
+    m_loadingCircle->setVisible(false);
+    m_buttonMenu->addChild(m_loadingCircle);
+
     m_buttonMenu->updateLayout();
     m_popupColumn->updateLayout();
     m_popupColumn->addChild(m_buttonMenu);
     m_popupColumn->updateLayout();
     m_mainLayer->addChildAtPosition(m_popupColumn, Anchor::Center);
+
+    if (Mod::get()->getSavedValue<time_t>("temp-timestamp", 0) != 0)
+    {
+        showVerify();
+    }
 
     return true;
 }
@@ -76,6 +86,16 @@ void GDriveSigninPopup::onExitTransitionDidStart()
     Popup::onExitTransitionDidStart();
     if (GDriveManager::getInstance()->getCurrentSigninPopup() == this)
         GDriveManager::getInstance()->setCurrentSigninPopup(nullptr);
+}
+
+void GDriveSigninPopup::onClose(CCObject *sender)
+{
+    Popup::onClose(sender);
+
+    Mod::get()->getSaveContainer().erase("temp-uuid");
+    Mod::get()->getSaveContainer().erase("temp-timestamp");
+    if (Mod::get()->saveData().isErr())
+        log::warn("Could not write save to file");
 }
 
 void GDriveSigninPopup::onSignin(CCObject *sender)
@@ -92,11 +112,6 @@ void GDriveSigninPopup::onVerify(CCObject *sender)
 
 void GDriveSigninPopup::showLoading()
 {
-    if (!m_loadingCircle)
-    {
-        m_loadingCircle = LoadingSpinner::create(30.f);
-        m_buttonMenu->addChild(m_loadingCircle);
-    }
     m_loadingCircle->setVisible(true);
     m_signinButton->setVisible(false);
     m_verifyButton->setVisible(false);
@@ -104,6 +119,7 @@ void GDriveSigninPopup::showLoading()
     m_buttonMenu->updateLayout();
     m_popupColumn->updateLayout();
 }
+
 void GDriveSigninPopup::showVerify()
 {
     if (!m_verifyButton)
@@ -118,6 +134,7 @@ void GDriveSigninPopup::showVerify()
     m_buttonMenu->updateLayout();
     m_popupColumn->updateLayout();
 }
+
 void GDriveSigninPopup::showSignin()
 {
     if (!m_signinButton)

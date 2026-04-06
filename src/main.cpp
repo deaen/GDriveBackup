@@ -1,5 +1,3 @@
-#include "Geode/ui/BasedButtonSprite.hpp"
-#include "Geode/ui/Layout.hpp"
 #include <Geode/Geode.hpp>
 using namespace geode::prelude;
 

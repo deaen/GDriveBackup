@@ -64,13 +64,16 @@ void GDriveManager::showError(std::string_view title, std::string_view error, bo
 void GDriveManager::signin()
 {
     /* Generate new uuid and current timestamp */
-    m_uuid = utils::random::generateUUID();
-    m_timestamp = std::time(nullptr);
+    Mod::get()->setSavedValue<std::string>("temp-uuid", utils::random::generateUUID());
+    Mod::get()->setSavedValue<time_t>("temp-timestamp", std::time(nullptr));
+    if (Mod::get()->saveData().isErr())
+        log::warn("Could not write save to file");
 
     /* Create request */
     auto req = web::WebRequest();
-    req.param("uuid", m_uuid);
-    req.param("timestamp", m_timestamp);
+
+    req.param("uuid", Mod::get()->getSavedValue<std::string>("temp-uuid"));
+    req.param("timestamp", Mod::get()->getSavedValue<time_t>("temp-timestamp"));
 
     /* Get url from api and then open in browser */
     async::spawn(req.get("https://api.deaen.top/gdb/getgoogleauth/"), [this](web::WebResponse res) {
@@ -79,21 +82,16 @@ void GDriveManager::signin()
             auto URL = res.json().unwrapOrDefault().get<std::string>("authorizationUrl").unwrapOrDefault();
             if (!URL.empty())
             {
-                web::openLinkInBrowser(fmt::format("https://gdb.deaen.top/auth/google.html?uuid={}&timestamp={}&url={}", this->m_uuid.c_str(), this->m_timestamp, utils::base64::encode(URL, base64::Base64Variant::UrlWithPad).c_str()));
-
+                web::openLinkInBrowser(fmt::format("https://gdb.deaen.top/auth/google.html?uuid={}&timestamp={}&url={}", Mod::get()->getSavedValue<std::string>("temp-uuid"), Mod::get()->getSavedValue<time_t>("temp-timestamp"), utils::base64::encode(URL, base64::Base64Variant::UrlWithPad).c_str()));
                 if (m_currentSigninPopup)
                     m_currentSigninPopup->showVerify();
-
                 return;
             }
         }
-        else
-            log::warn("Sign in Error Code: {}", res.code());
-
+        log::warn("Sign in Error Code: {}", res.code());
+        showError("Sign in", fmt::format("Error code: {}", res.code()));
         if (m_currentSigninPopup)
             m_currentSigninPopup->showSignin();
-
-        showError("Sign in", fmt::format("Error code: {}", res.code()));
     });
 }
 
@@ -101,8 +99,9 @@ void GDriveManager::verify()
 {
     /* Create request */
     auto req = web::WebRequest();
-    req.param("uuid", m_uuid);
-    req.param("timestamp", m_timestamp);
+
+    req.param("uuid", Mod::get()->getSavedValue<std::string>("temp-uuid"));
+    req.param("timestamp", Mod::get()->getSavedValue<time_t>("temp-timestamp"));
 
     /* Get token and save it in file */
     async::spawn(req.get("https://api.deaen.top/gdb/getrefreshtoken/"), [this](web::WebResponse res) {
@@ -110,22 +109,28 @@ void GDriveManager::verify()
         {
             auto token = res.json().unwrapOrDefault().get<std::string>("refresh_token").unwrapOrDefault();
             if (!token.empty())
+            {
                 Mod::get()->setSavedValue<EncStr>("refresh_token", GDriveEncypt::create()->encryptString(token));
-
-            async::spawn(getAccessToken(), [this](std::string token) {
-                if (m_currentSigninPopup)
-                    m_currentSigninPopup->finishUp();
-            });
+                async::spawn(getAccessToken(), [this](std::string token) {
+                    if (!token.empty())
+                    {
+                        if (m_currentSigninPopup)
+                            m_currentSigninPopup->finishUp();
+                    }
+                    else
+                    {
+                        showError("Verify", "Could not get auth token... please check your internet connection and try again later");
+                        if (m_currentSigninPopup)
+                            m_currentSigninPopup->showVerify();
+                    }
+                });
+                return;
+            }
         }
-        else
-        {
-            log::warn("Verify Error Code: {}", res.code());
-
-            if (m_currentSigninPopup)
-                m_currentSigninPopup->showVerify();
-
-            showError("Verify", fmt::format("Error code: {}", res.code()));
-        }
+        log::warn("Verify Error Code: {}", res.code());
+        showError("Verify", fmt::format("Error code: {}", res.code()));
+        if (m_currentSigninPopup)
+            m_currentSigninPopup->showVerify();
     });
 }
 
@@ -486,8 +491,8 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         {
             co_await waitForMainThread([&res, slot, this] {
                 showError(fmt::format("Slot {} Load Failed ", slot), "Can't find file", false);
-                Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), 0);
-                Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), 0);
+                // Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), 0);
+                // Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), 0);
             });
             co_return false;
         }
@@ -645,8 +650,10 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         }
 
         if (levelDic->count() != levelCount)
+        {
             showError(fmt::format("Slot {} load failed", slot), "Can't get levels", false);
-
+            return;
+        }
         // now lets make achievements silent
         auto am = AchievementManager::sharedState();
         bool oldDontNotify = am->m_dontNotify;
@@ -695,8 +702,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         am->m_dontNotify = oldDontNotify;
         gsm->m_skipIncrementChallenge = oldSkipIncrementChallenge;
 
-        // set tverything cuz they break sometimes lol
-
+        // set every icon cuz they break sometimes lol
         gm->m_playerFrame = gs.getIntegerForKey("playerFrame");
         gm->m_playerShip = gs.getIntegerForKey("playerShip");
         gm->m_playerBall = gs.getIntegerForKey("playerBall");
@@ -713,6 +719,39 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         gm->m_playerDeathEffect = gs.getIntegerForKey("playerDeathEffect");
         gm->m_playerJetpack = gs.getIntegerForKey("playerJetpack");
         gm->m_playerGlow = gs.getBoolForKey("playerGlow");
+
+        // setting game varaibles
+        if (Mod::get()->getSettingValue<bool>("load-game-options"))
+        {
+            for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(gs.getDictForKey("valueKeeper", false)))
+            {
+                if (!key.contains("gv_"))
+                    continue;
+
+                auto vint = value->intValue();
+                auto kname = utils::string::remove(key, "gv_");
+                auto kint = numFromString<int>(kname).unwrapOrDefault();
+                switch (kint)
+                {
+                case 0:
+                case 23:
+                case 25:
+                case 28:
+                case 30:
+                case 32:
+                case 115:
+                case 116:
+                case 122:
+                case 168:
+                    continue;
+                }
+
+                if (vint == 0 || vint == 1)
+                    gm->setGameVariable(kname.c_str(), static_cast<bool>(vint));
+                else
+                    gm->setIntGameVariable(kname.c_str(), vint);
+            }
+        }
     });
 
     co_return true;
@@ -892,7 +931,7 @@ arc::Future<std::string> GDriveManager::getEmail()
                          .unwrapOrDefault()
                          .get<std::string>("status")
                          .unwrapOr(fmt::format("Error code: {}", res.code()));
-        showError("Email", error);
+        co_await waitForMainThread([this, &error] { showError("Email", error); });
     }
 
     co_return Mod::get()->getSavedValue<std::string>("email");
