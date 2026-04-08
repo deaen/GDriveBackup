@@ -1,8 +1,9 @@
 #include "GDriveSigninPopup.hpp"
 
+#include <ctime>
+
 #include "GDriveManager.hpp"
 #include "GDrivePopup.hpp"
-#include "Geode/cocos/label_nodes/CCLabelBMFont.h"
 
 GDriveSigninPopup *GDriveSigninPopup::create()
 {
@@ -19,7 +20,7 @@ GDriveSigninPopup *GDriveSigninPopup::create()
 
 bool GDriveSigninPopup::init()
 {
-    if (!Popup::init(330.f, 160.f, "square01_001.png"))
+    if (!Popup::init(335.f, 160.f, "square01_001.png"))
         return false;
     GDriveManager::getInstance()->setCurrentSigninPopup(this);
     this->setID("gdrive-sign-in-popup"_spr);
@@ -36,12 +37,12 @@ bool GDriveSigninPopup::init()
     m_popupColumn->setID("popup-column"_spr);
 
     /* title */
-    auto title = CCLabelBMFont::create("GDrive Backup Setup", "goldFont.fnt", m_popupColumn->getContentWidth());
-    title->setID("title"_spr);
-    m_popupColumn->addChild(title);
+    m_title = CCLabelBMFont::create("GDrive Backup Setup", "goldFont.fnt", m_popupColumn->getContentWidth());
+    m_title->setID("title"_spr);
+    m_popupColumn->addChild(m_title);
 
     /*Description label*/
-    m_description = CCLabelBMFont::create("Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt", m_popupColumn->getContentWidth() - 20.f, CCTextAlignment::kCCTextAlignmentCenter);
+    m_description = CCLabelBMFont::create("Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt", m_popupColumn->getContentWidth() - 30.f, CCTextAlignment::kCCTextAlignmentCenter);
     m_description->setID("description"_spr);
     m_popupColumn->addChild(m_description);
 
@@ -50,7 +51,7 @@ bool GDriveSigninPopup::init()
     m_buttonMenu->setContentWidth(m_mainLayer->getContentWidth());
     m_buttonMenu->setID("button-menu"_spr);
     m_buttonMenu->setAnchorPoint({0.5f, 0.5f});
-    m_buttonMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::Center));
+    m_buttonMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::Center)->setGap(15.f));
 
     /* button z*/
     m_signinButton = CCMenuItemSpriteExtra::create(ButtonSprite::create("Sign in"), this, menu_selector(GDriveSigninPopup::onSignin));
@@ -68,14 +69,18 @@ bool GDriveSigninPopup::init()
     m_buttonMenu->addChild(m_loadingCircle);
 
     m_buttonMenu->updateLayout();
-    m_popupColumn->updateLayout();
     m_popupColumn->addChild(m_buttonMenu);
+
     m_popupColumn->updateLayout();
     m_mainLayer->addChildAtPosition(m_popupColumn, Anchor::Center);
 
-    if (Mod::get()->getSavedValue<time_t>("temp-timestamp", 0) != 0)
-    {
+    auto tempstamp = Mod::get()->getSavedValue<time_t>("temp-timestamp", 0);
+    if (tempstamp != 0 && tempstamp > std::time(nullptr))
         showVerify();
+    else
+    {
+        Mod::get()->getSaveContainer().erase("temp-uuid");
+        Mod::get()->getSaveContainer().erase("temp-timestamp");
     }
 
     return true;
@@ -103,6 +108,9 @@ void GDriveSigninPopup::onSignin(CCObject *sender)
     showLoading();
     GDriveManager::getInstance()->signin();
 }
+void GDriveSigninPopup::onTitle(CCObject *sender)
+{
+}
 
 void GDriveSigninPopup::onVerify(CCObject *sender)
 {
@@ -112,19 +120,16 @@ void GDriveSigninPopup::onVerify(CCObject *sender)
 
 void GDriveSigninPopup::showLoading()
 {
-    m_loadingCircle->setVisible(true);
     m_signinButton->setVisible(false);
     m_verifyButton->setVisible(false);
 
+    m_loadingCircle->setVisible(true);
+
     m_buttonMenu->updateLayout();
-    m_popupColumn->updateLayout();
 }
 
 void GDriveSigninPopup::showVerify()
 {
-    if (!m_verifyButton)
-        return;
-
     m_verifyButton->setVisible(true);
     m_signinButton->setVisible(false);
     m_loadingCircle->setVisible(false);
@@ -132,20 +137,15 @@ void GDriveSigninPopup::showVerify()
     m_description->setString("Once you've finished signing in, click the button below to complete setup!");
 
     m_buttonMenu->updateLayout();
-    m_popupColumn->updateLayout();
 }
 
 void GDriveSigninPopup::showSignin()
 {
-    if (!m_signinButton)
-        return;
-
     m_signinButton->setVisible(true);
     m_verifyButton->setVisible(false);
     m_loadingCircle->setVisible(false);
 
     m_buttonMenu->updateLayout();
-    m_popupColumn->updateLayout();
 }
 
 void GDriveSigninPopup::finishUp()

@@ -20,9 +20,11 @@ class GDriveManager : public cocos2d::CCObject
     void loadData(const int slot);
 
     arc::Future<std::string> getFolderID(const int slot, const bool autoCreate = true);
-    arc::Future<bool> setMetadata(const int slot);
+    arc::Future<bool> getMetadata(const int slot);
+    arc::Future<bool> setDescription(std::string description, const int slot);
     arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
     arc::Future<bool> loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer);
+    
 
     void setCurrentPopup(GDrivePopup *popup);
     void setCurrentSigninPopup(GDriveSigninPopup *signinPopup);

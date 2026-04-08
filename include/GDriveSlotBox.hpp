@@ -19,13 +19,14 @@ class GDriveSlotBox : public CCNode
     bool init(int slot, float width, float height);
 
     CCMenu *m_menu;
-    CCLabelBMFont* m_slotTitle;
+    TextInput *m_slotTitle;
+    CCMenuItemSpriteExtra *m_confirmButton;
     CCNode *m_infoRow;
     CCNode *m_timeColumn;
     NineSlice *m_separator;
     CCMenuItemSpriteExtra *m_saveButton;
-    ButtonSprite* m_saveButtonSprite;
-    ButtonSprite* m_loadButtonSprite;
+    ButtonSprite *m_saveButtonSprite;
+    ButtonSprite *m_loadButtonSprite;
     CCMenuItemSpriteExtra *m_loadButton;
 
     CCLabelBMFont *m_dateLabel;
@@ -38,10 +39,13 @@ class GDriveSlotBox : public CCNode
     CCMenuItemSpriteExtra *m_statusCancel;
 
     int m_slot = 0;
-    size_t m_total= 0;
-    size_t m_progress= 0;
+    size_t m_total = 0;
+    size_t m_progress = 0;
 
     void onSave(CCObject *sender);
     void onLoad(CCObject *sender);
-    void onCancel(CCObject *onCancel);
+    void onCancel(CCObject *sender);
+    void onConfirmTitle(CCObject *sender);
+
+    float getcalculatedScale(float childWidth, float childScale);
 };

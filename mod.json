@@ -8,7 +8,7 @@
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDrive Backup",
-	"version": "v1.1.0",
+	"version": "v1.2.0",
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {
@@ -26,7 +26,8 @@
 		"sprites": [
 			"resources/size.png",
 			"resources/title.png",
-			"resources/icon.png"
+			"resources/icon.png",
+			"resources/titleHint.png"
 		]
 	},
 	"settings": {
@@ -40,8 +41,8 @@
 		"load-game-options":{
 			"type": "bool",
 			"default": false,
-			"name": "Load game options",
-			"description": "Enable loading your saved game options (e.g. quick keys, CBS, button rows, link controls, etc.) <cr>Note:</c> This doesn't restore every single option, mainly excludes graphics options."
+			"name": "Load game & editor options",
+			"description": "Enable loading your saved game & editor options (e.g. quick keys, CBS, button rows, link controls, etc.) <cr>Note:</c> This doesn't restore every single option, mainly excludes graphics options."
 		},
 		"ui-title": {
 			"type": "title",

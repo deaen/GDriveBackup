@@ -1,3 +1,8 @@
+# 1.2.0
+- You can now name slots! just select a slot title to edit it!
+- Cleaned up errors!
+- Destroyed Some Bugs.
+
 # 1.1.0
 - Added an option to load saved settings!
 - Fixed Sign in issues on android devices.

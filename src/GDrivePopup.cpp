@@ -1,8 +1,6 @@
 #include "GDrivePopup.hpp"
 
-#include <Geode/loader/SettingV3.hpp>
 #include <Geode/ui/GeodeUI.hpp>
-#include <Geode/utils/cocos.hpp>
 
 #include "GDriveManager.hpp"
 #include "GDriveSigninPopup.hpp"
@@ -157,28 +155,35 @@ bool GDrivePopup::init()
     /* Corners */
     auto bottomLeftCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
     bottomLeftCorner->setAnchorPoint({0, 0});
-    bottomLeftCorner->setID("bottom-left-corner");
+    bottomLeftCorner->setID("bottom-left-corner"_spr);
     m_mainLayer->addChildAtPosition(bottomLeftCorner, Anchor::BottomLeft);
 
     auto topLeftCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
     topLeftCorner->setAnchorPoint({0, 1});
     topLeftCorner->setFlipY(true);
-    topLeftCorner->setID("top-left-corner");
+    topLeftCorner->setID("top-left-corner"_spr);
     m_mainLayer->addChildAtPosition(topLeftCorner, Anchor::TopLeft);
 
     auto bottomRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
     bottomRightCorner->setAnchorPoint({1, 0});
     bottomRightCorner->setFlipX(true);
-    bottomRightCorner->setID("bottom-right-corner");
+    bottomRightCorner->setID("bottom-right-corner"_spr);
     m_mainLayer->addChildAtPosition(bottomRightCorner, Anchor::BottomRight);
 
     auto topRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
     topRightCorner->setAnchorPoint({1, 1});
     topRightCorner->setFlipX(true);
     topRightCorner->setFlipY(true);
-    topRightCorner->setID("top-right-corner");
+    topRightCorner->setID("top-right-corner"_spr);
     m_mainLayer->addChildAtPosition(topRightCorner, Anchor::TopRight);
 
+    if (Mod::get()->getSavedValue<bool>("show-title-hint", true))
+    {
+        auto titleHint = CCSprite::create("titleHint.png"_spr);
+        titleHint->setAnchorPoint({0, 0.5});
+        titleHint->setID("title-hint"_spr);
+        m_mainLayer->addChildAtPosition(titleHint, Anchor::Left, {7.5f, (m_slotRow->getScaledContentHeight() / 2.f) - 9.f});
+    }
     return true;
 }
 void GDrivePopup::onExitTransitionDidStart()

@@ -88,8 +88,8 @@ void GDriveManager::signin()
                 return;
             }
         }
-        log::warn("Sign in Error Code: {}", res.code());
-        showError("Sign in", fmt::format("Error code: {}", res.code()));
+        log::warn("Sign in Error Code: {}", res.string());
+        showError("Sign in", fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()));
         if (m_currentSigninPopup)
             m_currentSigninPopup->showSignin();
     });
@@ -128,7 +128,8 @@ void GDriveManager::verify()
             }
         }
         log::warn("Verify Error Code: {}", res.code());
-        showError("Verify", fmt::format("Error code: {}", res.code()));
+
+        showError("Verify", fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()));
         if (m_currentSigninPopup)
             m_currentSigninPopup->showVerify();
     });
@@ -170,7 +171,7 @@ arc::Future<std::string> GDriveManager::getFolderID(const int slot, const bool a
         }
 
         auto req = web::WebRequest();
-        req.param("access_token", co_await getAccessToken());
+        req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
 
         std::string query = fmt::format("name='{}' and trashed=false and mimeType = 'application/vnd.google-apps.folder'", folder);
 
@@ -269,7 +270,7 @@ void GDriveManager::loadData(const int slot)
 
 void GDriveManager::loadMetadata(const int slot)
 {
-    m_metadataListener.spawn(setMetadata(slot), [this, slot](bool ok) {
+    m_metadataListener.spawn(getMetadata(slot), [this, slot](bool ok) {
         if (!ok)
         {
             Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), 0);
@@ -310,7 +311,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
     {
         auto req = web::WebRequest();
         req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", fmt::format("save-{}.dat", slot), parentID));
-        req.param("access_token", token);
+        req.header("Authorization", fmt::format("Bearer {}", token));
 
         auto res = co_await req.get("https://www.googleapis.com/drive/v3/files");
         if (res.ok())
@@ -324,9 +325,9 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         }
         else
         {
-            log::warn("{}", res.code());
+            log::warn("{}", res.string());
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Save Failed ", slot), fmt::format("Error code: {}", res.code()), false);
+                showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
             });
             co_return false;
         }
@@ -336,7 +337,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
     {
         auto req = web::WebRequest();
         req.param("uploadType", "resumable");
-        req.param("access_token", token);
+        req.header("Authorization", fmt::format("Bearer {}", token));
 
         req.header("X-Upload-Content-Length", std::to_string(data.size()));
         req.header("Content-Type", "application/json; charset=UTF-8");
@@ -362,12 +363,12 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
             }
         }
         else
-            log::warn("{}", res.code());
+            log::warn("{}", res.string());
 
         if (resumableURL.empty())
         {
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
+                showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
             });
             co_return false;
         }
@@ -383,7 +384,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
 
     /* Upload Data */
     {
-        responseReq.param("access_token", token);
+        responseReq.header("Authorization", fmt::format("Bearer {}", token));
         web::WebResponse res;
         int retries = 0;
         size_t i = 0;
@@ -413,7 +414,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                 {
                     // assume the worst.
                     co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
+                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
                     });
                     co_return false;
                 }
@@ -422,12 +423,11 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
             {
                 if (auto range = res.getAllHeadersNamed("range"))
                 {
-                    size_t r = geode::utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back())
-                                   .unwrapOrDefault();
+                    size_t r = geode::utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back()).unwrapOrDefault();
                     if (r == 0)
                     {
                         co_await waitForMainThread([&res, slot, this] {
-                            showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
+                            showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
                         });
                         co_return false;
                     }
@@ -436,7 +436,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                 else
                 {
                     co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("Error code: {}", res.code()), false);
+                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
                     });
                     co_return false;
                 }
@@ -476,7 +476,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     /* Get file ID */
 
     auto req = web::WebRequest();
-    req.param("access_token", token);
+    req.header("Authorization", fmt::format("Bearer {}", token));
 
     req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", fmt::format("save-{}.dat", slot),
                                parentID));
@@ -500,9 +500,9 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     else
     {
 
-        log::warn("{}", res.code());
+        log::warn("{}", res.string());
         co_await waitForMainThread([&res, slot, this] {
-            showError(fmt::format("Slot {} Load Failed ", slot), fmt::format("Error code: {}", res.code()), false);
+            showError(fmt::format("Slot {} Load failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
         });
         co_return false;
     }
@@ -519,7 +519,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         if (size == 0)
         {
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Load Failed ", slot), fmt::format("Error code: {}", res.code()), false);
+                showError(fmt::format("Slot {} load Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
             });
             co_return false;
         }
@@ -528,7 +528,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), size);
     }
     else
-        log::warn("{}", res.code());
+        log::warn("{}", res.string());
 
     co_await waitForMainThread([&loadLayer, this, slot] {
         if (loadLayer)
@@ -595,16 +595,16 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
             {
                 // assume the worst.
                 co_await waitForMainThread([&res, slot, this] {
-                    showError(fmt::format("Slot {} timeout reached", slot), fmt::format("Error code: {}", res.code()), false);
+                    showError(fmt::format("Slot {} timeout Reached", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
                 });
                 co_return false;
             }
         }
         else
         {
-            log::warn("{}", res.code());
+            log::warn("{}", res.string());
             co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} load failed", slot), fmt::format("Error code: {}", res.code()), false);
+                showError(fmt::format("Slot {} Load failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
             });
             co_return false;
         }
@@ -757,7 +757,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     co_return true;
 }
 
-arc::Future<bool> GDriveManager::setMetadata(const int slot)
+arc::Future<bool> GDriveManager::getMetadata(const int slot)
 {
     // auto savedTimestamp = Mod::get()->getSavedValue<time_t>(
     //     fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), -1);
@@ -770,10 +770,10 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
     std::string token = co_await getAccessToken();
 
     auto req = web::WebRequest();
-    req.param("access_token", token);
+    req.header("Authorization", fmt::format("Bearer {}", token));
     web::WebResponse res;
 
-    /* Gtet id.......*/
+    /* Get id.......*/
 
     std::string parentID = co_await getFolderID(slot, false);
     if (parentID.empty())
@@ -795,17 +795,26 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
     }
     else
     {
-        log::warn("{}", res.code());
+        log::warn("{}", res.string());
+
+        if (res.code() == 401 && res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault() == "UNAUTHENTICATED")
+        {
+            co_await waitForMainThread([this] {
+                showError("Failed to authenticate,", "please sign in again", false);
+                signout(true);
+            });
+        }
         co_return false;
     }
 
-    req.param("fields", "size,modifiedTime");
+    req.param("fields", "size,modifiedTime,description");
     res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
 
     if (res.ok())
     {
         auto timestamp = res.json().unwrapOrDefault().get<std::string>("modifiedTime").unwrapOrDefault();
         auto size = numFromString<size_t>(res.json().unwrapOrDefault().get<std::string>("size").unwrapOrDefault()).unwrapOrDefault();
+        auto description = res.json().unwrapOrDefault().get<std::string>("description").unwrapOrDefault();
 
         if (timestamp.empty() && size == 0)
             co_return false;
@@ -825,10 +834,67 @@ arc::Future<bool> GDriveManager::setMetadata(const int slot)
 
         Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), localtime);
         Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), size);
+        Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, slot), description);
     }
     else
     {
-        log::warn("{}", res.code());
+        log::warn("{}", res.string());
+        co_return false;
+    }
+
+    co_return true;
+}
+
+arc::Future<bool> GDriveManager::setDescription(std::string description, const int slot)
+{
+    std::string fileID;
+    std::string token = co_await getAccessToken();
+
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", token));
+    web::WebResponse res;
+
+    /* Getting ID */
+    std::string parentID = co_await getFolderID(slot, false);
+    if (parentID.empty())
+        co_return false;
+    req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, parentID));
+
+    res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+    if (res.ok())
+    {
+        auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+        if (!id.empty())
+        {
+            fileID = std::move(id);
+            Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), fileID);
+        }
+        else
+            co_return false;
+    }
+    else
+    {
+        co_await waitForMainThread([this, slot, &res] {
+            showError(fmt::format("Slot {} title update failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+        });
+        co_return false;
+    }
+
+    req.removeParam("q");
+    auto body = matjson::Value();
+    body.set("description", description);
+    req.bodyJSON(body);
+    res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
+
+    if (res.ok())
+    {
+        Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, slot), description.data());
+    }
+    else
+    {
+        co_await waitForMainThread([this, slot, &res] {
+            showError(fmt::format("Slot {} title update failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+        });
         co_return false;
     }
 
@@ -874,6 +940,7 @@ arc::Future<std::string> GDriveManager::getAccessToken()
     if ((!token.empty()) && Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr))
         co_return token;
 
+    log::debug("getting access");
     /* Create request */
     auto req = web::WebRequest();
     req.param("refresh_token", co_await getRefreshToken());
@@ -891,7 +958,7 @@ arc::Future<std::string> GDriveManager::getAccessToken()
         }
     }
     else
-        log::warn("{}", res.code());
+        log::warn("{}", res.string());
 
     co_return GDriveEncypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
 }
@@ -904,7 +971,7 @@ arc::Future<std::string> GDriveManager::getEmail()
 
     /* Create request */
     auto req = web::WebRequest();
-    req.param("access_token", co_await getAccessToken());
+    req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
     req.param("fields", "user");
 
     /* get access token and save it to var */
@@ -924,13 +991,8 @@ arc::Future<std::string> GDriveManager::getEmail()
     }
     else
     {
-        log::warn("{}", res.code());
-        auto error = res.json()
-                         .unwrapOrDefault()
-                         .get<matjson::Value>("error")
-                         .unwrapOrDefault()
-                         .get<std::string>("status")
-                         .unwrapOr(fmt::format("Error code: {}", res.code()));
+        log::warn("{}", res.string());
+        auto error = res.json().unwrapOrDefault().get<matjson::Value>("error").unwrapOrDefault().get<std::string>("status").unwrapOr(fmt::format("error code: {}", res.code()));
         co_await waitForMainThread([this, &error] { showError("Email", error); });
     }
 
