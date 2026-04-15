@@ -5,9 +5,8 @@
 <h1>GDrive Backup</h1>
 <h3> Save & load your data to Google Drive!</h3>
 
-![Mod Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=version)
 ![Downloads](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=downloads)
-![GD Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=gd_version)
+![Mod Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=version)
 ![Geode Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=geode_version)
 
 <img src="preview.png" style="width:600px"/>
