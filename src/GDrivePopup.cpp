@@ -165,24 +165,27 @@ bool GDrivePopup::init()
     m_mainLayer->addChildAtPosition(topLeftCorner, Anchor::TopLeft);
 
     auto bottomRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
-    bottomRightCorner->setAnchorPoint({1, 0});
+    bottomRightCorner->setAnchorPoint({1.f, 0});
     bottomRightCorner->setFlipX(true);
     bottomRightCorner->setID("bottom-right-corner"_spr);
     m_mainLayer->addChildAtPosition(bottomRightCorner, Anchor::BottomRight);
 
     auto topRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
-    topRightCorner->setAnchorPoint({1, 1});
+    topRightCorner->setAnchorPoint({1.f, 1.f});
     topRightCorner->setFlipX(true);
     topRightCorner->setFlipY(true);
     topRightCorner->setID("top-right-corner"_spr);
     m_mainLayer->addChildAtPosition(topRightCorner, Anchor::TopRight);
 
-    if (Mod::get()->getSavedValue<bool>("show-title-hint", true))
+    if (Mod::get()->getSavedValue<bool>("show-title-hint", true) && Mod::get()->getSavedValue<int>("hide-hint") <= 15)
     {
         auto titleHint = CCSprite::create("titleHint.png"_spr);
-        titleHint->setAnchorPoint({0, 0.5});
+        titleHint->setAnchorPoint({0, 0.5f});
+        titleHint->setScale(0.9f);
         titleHint->setID("title-hint"_spr);
         m_mainLayer->addChildAtPosition(titleHint, Anchor::Left, {7.5f, (m_slotRow->getScaledContentHeight() / 2.f) - 9.f});
+
+        Mod::get()->setSavedValue<int>("hide-hint",  Mod::get()->getSavedValue<int>("hide-hint") + 1);
     }
     return true;
 }

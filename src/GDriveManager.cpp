@@ -940,7 +940,6 @@ arc::Future<std::string> GDriveManager::getAccessToken()
     if ((!token.empty()) && Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr))
         co_return token;
 
-    log::debug("getting access");
     /* Create request */
     auto req = web::WebRequest();
     req.param("refresh_token", co_await getRefreshToken());

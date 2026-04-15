@@ -1,11 +1,18 @@
+
+
+<div align="center">
 <img src="logo.png" style="width:100px"/>
+<h1>GDrive Backup</h1>
+<h3> Save & load your data to Google Drive!</h3>
 
-# GDrive Backup
-**<cg>save & load</c> your data to <cy>Google Drive!</c>**
+![Mod Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=version)
+![Downloads](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=downloads)
+![GD Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=gd_version)
+![Geode Version](https://api.geode-sdk.org/v1/mods/deaen.gdrivebackup/status_badge?stat=geode_version)
 
-<p align="center">
 <img src="preview.png" style="width:600px"/>
-</p>
+</div>
+
 
 ## <cj>Features:</c>
 - **Backup and load your data to Google Drive!**
