@@ -301,7 +301,7 @@ void GDriveSlotBox::onLoad(CCObject *sender)
 {
     createQuickPopup(
         fmt::format("Load Slot {}", m_slot).c_str(),
-        fmt::format("Do you want to <cg>load</c> your <cj>slot {}</c> data?\n<cy>This will</c> <cr>overwrite</c> <cy>your data!</c>", m_slot).c_str(),
+        fmt::format("Do you want to <cg>load</c> your <cj>slot {}</c> data?\n<cy>This will merge your data!</c>", m_slot).c_str(),
         "Cancel", "Load",
         [this](auto, bool btn2) {
             if (btn2)

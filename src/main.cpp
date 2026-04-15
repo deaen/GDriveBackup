@@ -51,7 +51,40 @@ class $modify(GDriveAccountLayer, AccountLayer)
             menu->addChildAtPosition(gdriveButton, Anchor::Center);
 
             if (m_listLayer)
-                menu->setPosition({m_listLayer->getPositionX() + m_listLayer->getContentWidth(), m_listLayer->getPositionY()});
+            {
+                auto pos = Mod::get()->getSettingValue<std::string>("button-position");
+                if (pos == "bottom right")
+                    menu->setPosition({m_listLayer->getPositionX() + m_listLayer->getContentWidth(), m_listLayer->getPositionY()});
+                else if (pos == "center right")
+                {
+                    menu->setAnchorPoint({0.4f, 0.5f});
+                    menu->setPositionX(m_listLayer->getPositionX() + m_listLayer->getContentWidth());
+                }
+                else if (pos == "top right")
+                {
+                    menu->setAnchorPoint({0.4f, 0.25f});
+                    menu->setPosition({m_listLayer->getPositionX() + m_listLayer->getContentWidth(), m_listLayer->getPositionY() + m_listLayer->getContentHeight()});
+                }
+                else if (pos == "bottom left")
+                    menu->setPosition({m_listLayer->getPositionX(), m_listLayer->getPositionY()});
+                else if (pos == "center left")
+                {
+                    menu->setAnchorPoint({0.6f, 0.5f});
+                    menu->setPositionX(m_listLayer->getPositionX());
+                }
+                else if (pos == "top left")
+                {
+                    menu->setAnchorPoint({0.6f, 0.25f});
+                    menu->setPosition({m_listLayer->getPositionX(), m_listLayer->getPositionY() + m_listLayer->getContentHeight()});
+                }
+                // else if (pos == "top")
+                // {
+                //     menu->setAnchorPoint({0.5f, 0.250f});
+                //     menu->setPositionY(m_listLayer->getPositionY() + m_listLayer->getContentHeight());
+                // }
+                else if (pos == "bottom")
+                    menu->setPositionY(m_listLayer->getPositionY());
+            }
             if (m_mainLayer)
                 m_mainLayer->addChild(menu);
         }

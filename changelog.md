@@ -1,3 +1,6 @@
+# 1.2.1
+- added the option to change the mod's button position in the account menu!
+
 # 1.2.0
 - You can now name slots! just select a slot title to edit it!
 - Cleaned up errors!

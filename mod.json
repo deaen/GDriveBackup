@@ -1,5 +1,5 @@
 {
-	"geode": "5.5.3",
+	"geode": "5.6.0",
 	"gd": {
 		"win": "2.2081",
 		"android": "2.2081",
@@ -8,7 +8,7 @@
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDrive Backup",
-	"version": "v1.2.0",
+	"version": "v1.2.1",
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {
@@ -38,7 +38,7 @@
 			"type": "title",
 			"name": "Backup Settings"
 		},
-		"load-game-options":{
+		"load-game-options": {
 			"type": "bool",
 			"default": false,
 			"name": "Load game & editor options",
@@ -62,10 +62,25 @@
 				"input": true
 			}
 		},
+		"button-position": {
+			"type": "string",
+			"name": "Button position",
+			"description": "Sets the <cy>position</c> of the mod's button on the <cg>account menu</c>.",
+			"default": "bottom right",
+			"one-of": [
+				"bottom right",
+				"center right",
+				"top right",
+				"top left",
+				"center left",
+				"bottom left",
+				"bottom"
+			]
+		},
 		"bottom-button": {
 			"type": "bool",
 			"name": "Main menu shortcut button",
-			"description": "<cg>adds</cg> a button for GDrive Backup to the bottom of the main menu. (next to the geode button)",
+			"description": "<cg>adds</cg> a button for GDrive Backup to the bottom of the main menu (next to the geode button).",
 			"default": false
 		}
 	},
