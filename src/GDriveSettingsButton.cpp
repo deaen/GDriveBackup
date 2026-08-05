@@ -43,8 +43,11 @@ class GDriveSettingsButton : public SettingV3
 class GDriveSettingsButtonNode : public SettingNodeV3
 {
   protected:
-    ButtonSprite *m_buttonSprite;
-    CCMenuItemSpriteExtra *m_button;
+    ButtonSprite *m_signinButtonSprite;
+    CCMenuItemSpriteExtra *m_signinButton;
+
+    ButtonSprite *m_cacheButtonSprite;
+    CCMenuItemSpriteExtra *m_cacheButton;
 
     bool init(std::shared_ptr<GDriveSettingsButton> setting, float width)
     {
@@ -52,23 +55,31 @@ class GDriveSettingsButtonNode : public SettingNodeV3
             return false;
 
         getNameLabel()->setVisible(false);
-        m_buttonSprite = ButtonSprite::create("Sign Out", "goldFont.fnt", "GJ_button_01.png");
-        m_buttonSprite->setScale(.7f);
-        m_button = CCMenuItemSpriteExtra::create(m_buttonSprite, this, menu_selector(GDriveSettingsButtonNode::onButton));
+        m_signinButtonSprite = ButtonSprite::create("Sign Out", "goldFont.fnt", "GJ_button_01.png");
+        m_signinButtonSprite->setScale(.7f);
+        m_signinButton = CCMenuItemSpriteExtra::create(m_signinButtonSprite, this, menu_selector(GDriveSettingsButtonNode::onSigninButton));
 
         if (Mod::get()->getSavedValue<std::array<std::string, 3>>("refresh_token")[0].empty())
         {
-            m_button->setEnabled(false);
-            m_buttonSprite->setCascadeColorEnabled(true);
-            m_buttonSprite->setCascadeOpacityEnabled(true);
-            m_buttonSprite->setOpacity(155);
-            m_buttonSprite->setColor(ccGRAY);
+            m_signinButton->setEnabled(false);
+            m_signinButtonSprite->setCascadeColorEnabled(true);
+            m_signinButtonSprite->setCascadeOpacityEnabled(true);
+            m_signinButtonSprite->setOpacity(155);
+            m_signinButtonSprite->setColor(ccGRAY);
         }
 
-        this->getButtonMenu()->addChildAtPosition(m_button, Anchor::Center);
+        m_cacheButtonSprite = ButtonSprite::create("Clear Cache", "goldFont.fnt", "GJ_button_01.png");
+        m_cacheButtonSprite->setScale(.7f);
+        m_cacheButton = CCMenuItemSpriteExtra::create(m_cacheButtonSprite, this, menu_selector(GDriveSettingsButtonNode::onCacheButton));
+
+        this->getButtonMenu()->setLayout(RowLayout::create());
         this->getButtonMenu()->setAnchorPoint({0.5f, 0.5f});
         this->getButtonMenu()->setContentSize(getBG()->getContentSize());
         this->getButtonMenu()->setPosition(getBG()->getPosition());
+
+        this->getButtonMenu()->addChild(m_cacheButton);
+        this->getButtonMenu()->addChild(m_signinButton);
+        
         this->getButtonMenu()->updateLayout();
 
         this->updateState(nullptr);
@@ -76,9 +87,9 @@ class GDriveSettingsButtonNode : public SettingNodeV3
         return true;
     }
 
-    void onButton(CCObject *)
+    void onSigninButton(CCObject *)
     {
-        createQuickPopup(
+        auto popDown = createQuickPopup(
             "Google Account", "Do you want to sign out of GDrive Backup?\n<cy>Note:</c> This does <cg>not</c> delete your saved data.",
             "Cancel", "Sign Out",
             [this](auto, bool btn2) {
@@ -86,14 +97,30 @@ class GDriveSettingsButtonNode : public SettingNodeV3
                 {
                     GDriveManager::getInstance()->signout(false);
 
-                    m_button->setEnabled(false);
-                    m_buttonSprite->setCascadeColorEnabled(true);
-                    m_buttonSprite->setCascadeOpacityEnabled(true);
-                    m_buttonSprite->setOpacity(155);
-                    m_buttonSprite->setColor(ccGRAY);
+                    m_signinButton->setEnabled(false);
+                    m_signinButtonSprite->setCascadeColorEnabled(true);
+                    m_signinButtonSprite->setCascadeOpacityEnabled(true);
+                    m_signinButtonSprite->setOpacity(155);
+                    m_signinButtonSprite->setColor(ccGRAY);
                 }
             },
-            true, true);
+            false, true);
+        popDown->m_button2->updateBGImage("GJ_button_06.png");
+        popDown->show();
+    }
+
+    void onCacheButton(CCObject *)
+    {
+        auto popDown = createQuickPopup(
+            "Clear folder cache", "Do you want to clear folder cache?\n(this doesn't delete your save data)\n<cg>this may be useful if you're facing file & folder Find issues when saving/loading.</c>",
+            "no", "yes",
+            [this](auto, bool btn2) {
+                if (btn2)
+                {
+                    GDriveManager::getInstance()->clearFolderCache();
+                }
+            }, false, true);
+        popDown->show();
     }
 
     void onCommit() override

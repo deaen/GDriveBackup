@@ -1,5 +1,5 @@
 {
-	"geode": "5.6.0",
+	"geode": "5.8.2",
 	"gd": {
 		"win": "2.2081",
 		"android": "2.2081",
@@ -8,7 +8,7 @@
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDrive Backup",
-	"version": "v1.2.1",
+	"version": "v2.0.0",
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {
@@ -27,7 +27,7 @@
 			"resources/size.png",
 			"resources/title.png",
 			"resources/icon.png",
-			"resources/titleHint.png"
+			"resources/iconNew.png"
 		]
 	},
 	"settings": {
@@ -81,6 +81,12 @@
 			"type": "bool",
 			"name": "Main menu shortcut button",
 			"description": "<cg>adds</cg> a button for GDrive Backup to the bottom of the main menu (next to the geode button).",
+			"default": false
+		},
+		"new-icon": {
+			"type": "bool",
+			"name": "Use new Drive icon",
+			"description": "Use the new weird gradient-y google drive icon for the buttons instead of the 'lame' 'old' 'one'",
 			"default": false
 		}
 	},

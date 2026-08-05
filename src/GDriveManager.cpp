@@ -110,7 +110,7 @@ void GDriveManager::verify()
             auto token = res.json().unwrapOrDefault().get<std::string>("refresh_token").unwrapOrDefault();
             if (!token.empty())
             {
-                Mod::get()->setSavedValue<EncStr>("refresh_token", GDriveEncypt::create()->encryptString(token));
+                Mod::get()->setSavedValue<EncStr>("refresh_token", GDriveEncrypt::create()->encryptString(token));
                 async::spawn(getAccessToken(), [this](std::string token) {
                     if (!token.empty())
                     {
@@ -154,79 +154,215 @@ void GDriveManager::signout(bool openAgain)
         GDrivePopup::create();
 }
 
-arc::Future<std::string> GDriveManager::getFolderID(const int slot, const bool autoCreate)
+arc::Future<std::optional<std::string>> GDriveManager::findFolder(const std::string name, const bool findByAccountID, const std::string accountID, const std::string parentID)
 {
-    std::string latestID;
+    auto localID = Mod::get()->getSavedValue<std::string>((fmt::format("{}-folder-id", (findByAccountID) ? accountID : name)));
+    if (!localID.empty())
+        co_return localID;
 
-    for (const auto &folder : utils::string::split(fmt::format("GDrive Backup/{}", GJAccountManager::sharedState()->m_accountID, slot), "/"))
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
+
+    std::string query = "trashed = false and mimeType = 'application/vnd.google-apps.folder'";
+
+    if (findByAccountID)
+        query += " and appProperties has { key='accountID' " + fmt::format("and value='{}'", accountID) + " }";
+    else
+        query += fmt::format(" and name = '{}'", name);
+
+    if (!parentID.empty())
+        query += fmt::format(" and '{}' in parents", parentID);
+
+    req.param("q", query);
+    auto res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+
+    if (res.ok())
     {
-        if (folder.empty())
-            continue;
-
-        auto localID = Mod::get()->getSavedValue<std::string>((fmt::format("{}-folder-id", folder)));
-        if (!localID.empty())
+        auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+        if (!id.empty())
         {
-            latestID = localID;
-            continue;
+            Mod::get()->setSavedValue<std::string>(fmt::format("{}-folder-id", (findByAccountID) ? accountID : name), id);
+            co_return id;
         }
+        else
+        {
 
+            auto findErrorCount = Mod::get()->getSavedValue<int>("google-find-error-count");
+            Mod::get()->setSavedValue<int>("google-find-error-count", findErrorCount + 1);
+
+            if (findErrorCount > 4)
+            {
+                clearFolderCache();
+                Mod::get()->setSavedValue<int>("google-find-error-count", 0);
+
+                co_await waitForMainThread([this] {
+                    showError("too many folder errors,", " Clearing folder cache...", false);
+                });
+            }
+        }
+    }
+    else
+        log::warn("Folder id find error: {}", res.string());
+
+    co_return std::nullopt;
+}
+
+arc::Future<std::optional<std::string>> GDriveManager::createFolder(const std::string name, const std::string accountID, const std::string parentID)
+{
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
+
+    auto body = matjson::makeObject({
+        {"name", name},
+        {"mimeType", "application/vnd.google-apps.folder"},
+    });
+    if (!accountID.empty())
+    {
+        body.set("appProperties", matjson::makeObject({{"accountID", accountID}}));
+    }
+    if (!parentID.empty())
+    {
+        body.set("parents", std::vector<matjson::Value>({parentID}));
+    }
+
+    req.bodyJSON(body);
+    auto res = co_await req.post("https://www.googleapis.com/drive/v3/files");
+    if (res.ok())
+    {
+        auto id = res.json().unwrapOrDefault().get<std::string>("id").unwrapOrDefault();
+        if (!id.empty())
+            co_return id;
+    }
+    else
+        log::warn("Folder creation error: {}", res.string());
+
+    co_return std::nullopt;
+}
+
+arc::Future<bool> GDriveManager::renameFolder(const std::string fileID, const std::string name, const std::string accountID)
+{
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
+
+    auto body = matjson::Value();
+    body.set("name", name);
+    body.set("appProperties", matjson::makeObject({{"accountID", accountID}}));
+    req.bodyJSON(body);
+
+    auto res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
+    if (res.ok())
+        co_return true;
+    else
+        log::warn("Folder id rename error: {}", res.string());
+
+    co_return false;
+}
+
+arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const bool autoCreate)
+{
+    std::string gdriveFolderName = "GDrive Backup";
+    std::string userFolderName = fmt::format("{}'s saves", GJAccountManager::sharedState()->m_username);
+    std::string accountID = std::to_string(GJAccountManager::sharedState()->m_accountID);
+    std::string gdriveAccountID = "gdriveMainFolder";
+    if (userFolderName == "'s saves")
+        userFolderName = "Unregistered saves";
+
+    // create big gdrive
+    auto gdriveFolderID = co_await findFolder(gdriveFolderName, true, gdriveAccountID);
+
+    if (!gdriveFolderID)
+    {
+        // look for old big gdrive
+        auto oldgdriveFolderID = co_await findFolder(gdriveFolderName, false);
+        if (oldgdriveFolderID)
+        {
+            if (co_await renameFolder(*oldgdriveFolderID, gdriveFolderName, gdriveAccountID))
+                gdriveFolderID = *oldgdriveFolderID;
+        }
+        // else just create
+        else if (autoCreate)
+            gdriveFolderID = co_await createFolder(gdriveFolderName);
+    }
+
+    if (gdriveFolderID)
+    {
+        // look for new name styled save
+        auto userFolderID = co_await findFolder(userFolderName, true, accountID, *gdriveFolderID);
+
+        if (userFolderID)
+            co_return userFolderID;
+
+        // before creating lets first look for old style name
+        auto oldNameduserFolderID = co_await findFolder(accountID, false, "", *gdriveFolderID);
+
+        // if found lets rename it so we dont do this again else jus auto create
+        if (oldNameduserFolderID)
+        {
+            if (co_await renameFolder(*oldNameduserFolderID, userFolderName, accountID))
+                co_return oldNameduserFolderID;
+        }
+        else if (autoCreate)
+        {
+            userFolderID = co_await createFolder(userFolderName, accountID, *gdriveFolderID);
+            if (userFolderID)
+                co_return userFolderID;
+        }
+    }
+
+    co_return std::nullopt;
+}
+
+arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
+{
+    std::string token = co_await getAccessToken();
+    std::optional<std::string> parentID = (defparentID.empty()) ? co_await getUserFolderID(autoCreateFolder) : defparentID;
+
+    if (!parentID)
+    {
+        if (visibleError)
+            co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
+    }
+    else
+    {
         auto req = web::WebRequest();
-        req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
+        req.header("Authorization", fmt::format("Bearer {}", token));
+        req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, *parentID));
 
-        std::string query = fmt::format("name='{}' and trashed=false and mimeType = 'application/vnd.google-apps.folder'", folder);
-
-        if (!latestID.empty())
-            query += fmt::format(" and '{}' in parents", latestID);
-
-        req.param("q", query);
         auto res = co_await req.get("https://www.googleapis.com/drive/v3/files");
-
         if (res.ok())
         {
             auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
             if (!id.empty())
-            {
-                latestID = id;
-                Mod::get()->setSavedValue<std::string>(fmt::format("{}-folder-id", folder), id);
-                continue;
-            }
+                co_return id;
+
+            if (visibleError)
+                co_await waitForMainThread([this, slot, errStr = error] {
+                    showError(errStr.c_str(), "Valid fileID not found.", false);
+                });
         }
         else
-            log::warn("Folder id find error code: {}", res.code());
-
-        if (!autoCreate)
-            co_return "";
-
-        // if all else fails just create the folder man
-        req.removeParam("q");
-        auto body = matjson::makeObject({
-            {"name", folder},
-            {"mimeType", "application/vnd.google-apps.folder"},
-        });
-
-        if (!latestID.empty())
         {
-            body.set("parents", std::vector<matjson::Value>({latestID}));
-        }
-        req.bodyJSON(body);
-        res = co_await req.post("https://www.googleapis.com/drive/v3/files");
-        if (res.ok())
-        {
-            auto id = res.json().unwrapOrDefault().get<std::string>("id").unwrapOrDefault();
-            if (!id.empty())
+            log::warn("{}", res.string());
+
+            if (res.code() == 401 && res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault() == "UNAUTHENTICATED")
             {
-                latestID = id;
-                Mod::get()->setSavedValue<std::string>(fmt::format("{}-folder-id", folder), id);
-                continue;
+                signout(true);
+                if (visibleError)
+                    co_await waitForMainThread([this] {
+                        showError("Failed to authenticate,", "please sign in again", false);
+                    });
+            }
+            else if (visibleError)
+            {
+                auto code = res.code();
+                auto status = res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault();
+                co_await waitForMainThread([this, slot, errStr = error, code, status] {
+                    showError(errStr.c_str(), fmt::format("error: {} {}", code, status), false);
+                });
             }
         }
-        else
-            log::warn("Folder creation error code: {}", res.code());
-
-        latestID = "";
     }
-
-    co_return latestID;
+    co_return std::nullopt;
 }
 
 void GDriveManager::saveData(const int slot)
@@ -240,7 +376,14 @@ void GDriveManager::saveData(const int slot)
         if (m_saveQueue[slot])
         {
             m_saveQueue[slot]->setStatusVisiblity(false);
+            m_saveQueue[slot]->setWorkingStatus(false);
             m_saveQueue[slot]->updateInfo();
+
+            if (m_saveQueue[slot]->getShouldEditMode())
+            {
+                m_saveQueue[slot]->setShouldEditMode(false);
+                m_saveQueue[slot]->setEditMode(true);
+            }
         }
 
         if (ok)
@@ -280,7 +423,14 @@ void GDriveManager::loadMetadata(const int slot)
         if (m_metadataQueue[slot] && checkStatus(Save, m_metadataQueue[slot]) == Idle)
         {
             m_metadataQueue[slot]->setStatusVisiblity(false);
+            m_metadataQueue[slot]->setMetadataStatus(false);
             m_metadataQueue[slot]->updateInfo();
+
+            if (m_metadataQueue[slot]->getShouldEditMode())
+            {
+                m_metadataQueue[slot]->setShouldEditMode(false);
+                m_metadataQueue[slot]->setEditMode(true);
+            }
         }
 
         removeFromQueue(Metadata, slot);
@@ -297,41 +447,18 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
     m_saveTotal = data.size();
 
     std::string resumableURL;
-    std::string parentID = co_await getFolderID(slot);
-    std::string token = co_await getAccessToken();
-    std::string fileID;
 
-    if (parentID.empty())
+    std::string token = co_await getAccessToken();
+    std::optional<std::string> parentID = co_await getUserFolderID(true);
+    if (!parentID)
     {
-        co_await waitForMainThread([this] { showError("Couldn't find folder", "", false); });
+        co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
         co_return false;
     }
 
-    /* Look 4 if file alr exists */
-    {
-        auto req = web::WebRequest();
-        req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", fmt::format("save-{}.dat", slot), parentID));
-        req.header("Authorization", fmt::format("Bearer {}", token));
-
-        auto res = co_await req.get("https://www.googleapis.com/drive/v3/files");
-        if (res.ok())
-        {
-            auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
-            if (!id.empty())
-            {
-                fileID = std::move(id);
-                Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), fileID);
-            }
-        }
-        else
-        {
-            log::warn("{}", res.string());
-            co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-            });
-            co_return false;
-        }
-    }
+    auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot), *parentID, false);
+    if (!fileID)
+        fileID = "";
 
     /* Initial request */
     {
@@ -343,16 +470,16 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         req.header("Content-Type", "application/json; charset=UTF-8");
 
         web::WebResponse res;
-        if (fileID.empty())
+        if (fileID->empty())
         {
             req.bodyJSON(matjson::makeObject({
                 {"name", fmt::format("save-{}.dat", slot)},
-                {"parents", std::vector<matjson::Value>({parentID})},
+                {"parents", std::vector<matjson::Value>({*parentID})},
             }));
             res = co_await req.post("https://www.googleapis.com/upload/drive/v3/files");
         }
         else
-            res = co_await req.patch(fmt::format("https://www.googleapis.com/upload/drive/v3/files/{}", fileID));
+            res = co_await req.patch(fmt::format("https://www.googleapis.com/upload/drive/v3/files/{}", *fileID));
 
         if (res.ok())
         {
@@ -443,9 +570,9 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
             }
         }
 
-        auto id = res.json().unwrapOrDefault().get<std::string>("id").unwrapOrDefault();
-        if (!id.empty())
-            Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), id);
+        // auto id = res.json().unwrapOrDefault().get<std::string>("id").unwrapOrDefault();
+        // if (!id.empty())
+        //     Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), id);
     }
 
     Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), std::time(nullptr));
@@ -463,55 +590,27 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     m_loadProgress = 0;
     m_loadTotal = 0;
 
-    std::string parentID = co_await getFolderID(slot);
     std::string token = co_await getAccessToken();
-    std::string fileID;
-
-    if (parentID.empty())
+    std::optional<std::string> parentID = co_await getUserFolderID(true);
+    if (!parentID)
     {
-        co_await waitForMainThread([this] { showError("Couldn't find folder", "", false); });
+        co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
         co_return false;
     }
 
-    /* Get file ID */
+    auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot, *parentID));
+    if (!fileID)
+        co_return false;
 
     auto req = web::WebRequest();
     req.header("Authorization", fmt::format("Bearer {}", token));
 
-    req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", fmt::format("save-{}.dat", slot),
-                               parentID));
-
-    auto res = co_await req.get("https://www.googleapis.com/drive/v3/files");
-    if (res.ok())
-    {
-        auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
-        if (!id.empty())
-            fileID = std::move(id);
-        else
-        {
-            co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Load Failed ", slot), "Can't find file", false);
-                // Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), 0);
-                // Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), 0);
-            });
-            co_return false;
-        }
-    }
-    else
-    {
-
-        log::warn("{}", res.string());
-        co_await waitForMainThread([&res, slot, this] {
-            showError(fmt::format("Slot {} Load failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-        });
-        co_return false;
-    }
+    req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", fmt::format("save-{}.dat", slot), *parentID));
 
     /* Get file size */
     req.removeParam("q");
     req.param("fields", "size");
-    res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
-
+    auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
     if (res.ok())
     {
         auto size = numFromString<size_t>(res.json().unwrapOrDefault().get<std::string>("size").unwrapOrDefault()).unwrapOrDefault();
@@ -552,7 +651,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
 
         responseReq.removeHeader("range");
         responseReq.header("range", fmt::format("bytes={}-{}", i, i + currentSize - 1));
-        res = co_await responseReq.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
+        res = co_await responseReq.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
 
         if (res.ok())
         {
@@ -720,7 +819,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         gm->m_playerJetpack = gs.getIntegerForKey("playerJetpack");
         gm->m_playerGlow = gs.getBoolForKey("playerGlow");
 
-        // setting game varaibles
+        // setting game variables
         if (Mod::get()->getSettingValue<bool>("load-game-options"))
         {
             for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(gs.getDictForKey("valueKeeper", false)))
@@ -757,59 +856,113 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     co_return true;
 }
 
-arc::Future<bool> GDriveManager::getMetadata(const int slot)
+arc::Future<sizeDataMap> GDriveManager::getSizeInfo()
 {
-    // auto savedTimestamp = Mod::get()->getSavedValue<time_t>(
-    //     fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), -1);
-    // auto savedSize = Mod::get()->getSavedValue<size_t>(
-    //     fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot));
-    // if (savedTimestamp != -1)
-    //     co_return;
-
-    std::string fileID;
+    /* Varz */
     std::string token = co_await getAccessToken();
-
-    auto req = web::WebRequest();
-    req.header("Authorization", fmt::format("Bearer {}", token));
+    web::WebRequest req;
     web::WebResponse res;
 
-    /* Get id.......*/
+    std::string parentID;
+    sizeDataMap sizeData; // <account id> = <slot name, size>
 
-    std::string parentID = co_await getFolderID(slot, false);
-    if (parentID.empty())
-        co_return false;
+    if (token.empty())
+        co_return sizeDataMap();
+    req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
 
-    req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, parentID));
-
+    /* Get Parent Folder ID */
+    req.param("q", "name='GDrive Backup' and trashed=false and mimeType = 'application/vnd.google-apps.folder'");
     res = co_await req.get("https://www.googleapis.com/drive/v3/files");
     if (res.ok())
     {
         auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
         if (!id.empty())
-        {
-            fileID = std::move(id);
-            Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), fileID);
-        }
+            parentID = id;
         else
-            co_return false;
+            co_return sizeDataMap();
     }
     else
+        co_return sizeDataMap();
+
+    /* Get Data */
+    std::string nextPageToken;
+    do
     {
-        log::warn("{}", res.string());
+        req.removeParam("q");
+        req.removeParam("pageToken");
+        req.param("fields", "files/id,files/name,files/size");
+        req.param("q", fmt::format("'{}' in parents and trashed=false and mimeType = 'application/vnd.google-apps.folder'", parentID));
+        req.param("orderBy", "name_natural");
+        if (!nextPageToken.empty())
+            req.param("pageToken", nextPageToken);
 
-        if (res.code() == 401 && res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault() == "UNAUTHENTICATED")
+        res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+        if (res.ok())
         {
-            co_await waitForMainThread([this] {
-                showError("Failed to authenticate,", "please sign in again", false);
-                signout(true);
-            });
+            nextPageToken = res.json().unwrapOrDefault().get<std::string>("nextPageToken").unwrapOrDefault();
+            auto folders = res.json().unwrapOrDefault()["files"];
+            for (auto &value : folders)
+            {
+                auto id = value.get<std::string>("id").unwrapOrDefault();
+                auto name = value.get<std::string>("name").unwrapOrDefault();
+                if (id.empty())
+                    continue;
+
+                /* Get File Size! I like copy Paste :) I am Evil This is Evil I am So Sorry*/
+                {
+                    std::string nextPageToken;
+                    do
+                    {
+                        req.removeParam("q");
+                        req.removeParam("pageToken");
+                        req.param("q", fmt::format("'{}' in parents and trashed=false", id));
+                        if (!nextPageToken.empty())
+                            req.param("pageToken", nextPageToken);
+
+                        res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+                        if (res.ok())
+                        {
+                            nextPageToken = res.json().unwrapOrDefault().get<std::string>("nextPageToken").unwrapOrDefault();
+                            auto files = res.json().unwrapOrDefault()["files"];
+                            for (auto &value : files)
+                            {
+                                auto slotId = value.get<std::string>("id").unwrapOrDefault();
+                                auto slotSize = value.get<std::string>("size").unwrapOrDefault();
+                                auto slotName = value.get<std::string>("name").unwrapOrDefault();
+
+                                sizeData[name][fmt::format("Slot {}", utils::string::filter(slotName, "0123456789"))] = utils::numFromString<float>(slotSize).unwrapOrDefault() / (1024.f * 1024.f);
+                            }
+                        }
+                        else
+                            co_return sizeDataMap();
+
+                    } while (!nextPageToken.empty());
+                }
+            }
         }
+        else
+            co_return sizeDataMap();
+
+    } while (!nextPageToken.empty());
+
+    if (sizeData.empty())
+        co_return sizeDataMap();
+
+    co_return sizeData;
+}
+
+arc::Future<bool> GDriveManager::getMetadata(const int slot)
+{
+    std::string token = co_await getAccessToken();
+    auto fileID = co_await getFileID(slot, false, "", "", false);
+    if (!fileID)
         co_return false;
-    }
 
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", token));
     req.param("fields", "size,modifiedTime,description");
-    res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
 
+    auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
     if (res.ok())
     {
         auto timestamp = res.json().unwrapOrDefault().get<std::string>("modifiedTime").unwrapOrDefault();
@@ -847,49 +1000,21 @@ arc::Future<bool> GDriveManager::getMetadata(const int slot)
 
 arc::Future<bool> GDriveManager::setDescription(std::string description, const int slot)
 {
-    std::string fileID;
     std::string token = co_await getAccessToken();
+    auto fileID = co_await getFileID(slot, false, fmt::format("Slot {} title update failed", slot));
+    if (!fileID)
+        co_return false;
 
     auto req = web::WebRequest();
     req.header("Authorization", fmt::format("Bearer {}", token));
-    web::WebResponse res;
 
-    /* Getting ID */
-    std::string parentID = co_await getFolderID(slot, false);
-    if (parentID.empty())
-        co_return false;
-    req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, parentID));
-
-    res = co_await req.get("https://www.googleapis.com/drive/v3/files");
-    if (res.ok())
-    {
-        auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
-        if (!id.empty())
-        {
-            fileID = std::move(id);
-            Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), fileID);
-        }
-        else
-            co_return false;
-    }
-    else
-    {
-        co_await waitForMainThread([this, slot, &res] {
-            showError(fmt::format("Slot {} title update failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-        });
-        co_return false;
-    }
-
-    req.removeParam("q");
     auto body = matjson::Value();
     body.set("description", description);
     req.bodyJSON(body);
-    res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID));
 
+    auto res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
     if (res.ok())
-    {
         Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, slot), description.data());
-    }
     else
     {
         co_await waitForMainThread([this, slot, &res] {
@@ -899,6 +1024,35 @@ arc::Future<bool> GDriveManager::setDescription(std::string description, const i
     }
 
     co_return true;
+}
+
+arc::Future<bool> GDriveManager::deleteFile(const int slot)
+{
+    std::string token = co_await getAccessToken();
+    auto fileID = co_await getFileID(slot, false, fmt::format("Slot {} delete failed", slot));
+    if (!fileID)
+        co_return false;
+
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", token));
+    req.method("DELETE");
+
+    auto res = co_await req.send("DELETE", fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
+    if (res.error())
+    {
+        co_await waitForMainThread([this, slot, &res] {
+            showError(fmt::format("Slot {} delete failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+        });
+        co_return false;
+    }
+
+    co_return true;
+}
+
+arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevisionList(const int slot)
+{
+    std::vector<GDriveManager::fileRevision> revisionVector;
+    co_return revisionVector;
 }
 
 void GDriveManager::setCurrentPopup(GDrivePopup *popup)
@@ -922,7 +1076,7 @@ GDriveSigninPopup *GDriveManager::getCurrentSigninPopup()
 
 arc::Future<std::string> GDriveManager::getRefreshToken()
 {
-    auto refreshToken = GDriveEncypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("refresh_token"));
+    auto refreshToken = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("refresh_token"));
     if (refreshToken == "")
     {
         co_await waitForMainThread([this] {
@@ -936,7 +1090,7 @@ arc::Future<std::string> GDriveManager::getRefreshToken()
 
 arc::Future<std::string> GDriveManager::getAccessToken()
 {
-    auto token = GDriveEncypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
+    auto token = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
     if ((!token.empty()) && Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr))
         co_return token;
 
@@ -952,14 +1106,14 @@ arc::Future<std::string> GDriveManager::getAccessToken()
         auto expires_at = res.json().unwrapOrDefault().get<time_t>("expires_in").unwrapOrDefault();
         if (token != "" && expires_at != 0)
         {
-            Mod::get()->setSavedValue<EncStr>("access_token", GDriveEncypt::create()->encryptString(token));
+            Mod::get()->setSavedValue<EncStr>("access_token", GDriveEncrypt::create()->encryptString(token));
             Mod::get()->setSavedValue<time_t>("access_expires_at", std::time(nullptr) + expires_at);
         }
     }
     else
         log::warn("{}", res.string());
 
-    co_return GDriveEncypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
+    co_return GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
 }
 
 arc::Future<std::string> GDriveManager::getEmail()
@@ -1007,6 +1161,18 @@ void GDriveManager::updateQueue(QueueType queueType)
             saveData(queue->begin()->first);
         else if (queueType == Metadata)
             loadMetadata(queue->begin()->first);
+    }
+}
+
+void GDriveManager::clearFolderCache()
+{
+    auto *saveContainer = &Mod::get()->getSaveContainer();
+    for (auto &[key, value] : *saveContainer)
+    {
+        if (key.contains("-folder-id"))
+        {
+            saveContainer->erase(key);
+        }
     }
 }
 

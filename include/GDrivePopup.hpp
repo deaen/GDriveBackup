@@ -4,7 +4,6 @@ using namespace geode::prelude;
 #include "GDriveLoadLayer.hpp"
 #include "GDriveSlotBox.hpp"
 
-
 class GDrivePopup : public Popup
 {
   public:
@@ -16,14 +15,19 @@ class GDrivePopup : public Popup
   private:
     bool init() override;
     void onExitTransitionDidStart() override;
+    
     void onToggleAccountVisibility(CCObject *sender);
     void onNameInfo(CCObject *sender);
+    void onSizeInfo(CCObject *sender);
     void onSettings(CCObject *sender);
     void onSlotPageLeft(CCObject *sender);
     void onSlotPageRight(CCObject *sender);
     void onPageButton(CCObject *sender);
+    void onToggleEditMode(CCObject *sender);
+
     void setupEmail();
     void showSlotPage(int pageNumber);
+    
 
     static constexpr int m_slotsPerPage = 3;
     int m_maxSlotPage = 0;
@@ -43,4 +47,6 @@ class GDrivePopup : public Popup
     std::string m_email;
     std::string m_emailCensored;
     bool m_emailVisible = true;
+
+    bool m_editMode = false;
 };

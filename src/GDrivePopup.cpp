@@ -4,6 +4,7 @@
 
 #include "GDriveManager.hpp"
 #include "GDriveSigninPopup.hpp"
+#include "GDriveSizeInfoPopup.hpp"
 
 GDrivePopup *GDrivePopup::create()
 {
@@ -36,31 +37,12 @@ bool GDrivePopup::init()
     titleSprite->setID("title-sprite"_spr);
     m_mainLayer->addChildAtPosition(titleSprite, Anchor::Top, {0, -33.f});
 
-    /* Mod Settings Button */
-    auto modSettingsSpr = CCSprite::createWithSpriteFrameName("GJ_optionsBtn_001.png");
-    modSettingsSpr->setScale(0.8f);
-    auto modSettingsButton =
-        CCMenuItemSpriteExtra::create(modSettingsSpr, this, menu_selector(GDrivePopup::onSettings));
-    modSettingsButton->setID("mod-settings-button"_spr);
-    m_buttonMenu->addChildAtPosition(modSettingsButton, Anchor::BottomRight, {-3, 3});
-
-    /* Left Arrow Button */
-    auto leftArrowSpr = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
-    leftArrowSpr->setScale(0.8f);
-
-    m_leftArrowButton = CCMenuItemSpriteExtra::create(leftArrowSpr, this, menu_selector(GDrivePopup::onSlotPageLeft));
-    m_leftArrowButton->setID("left-arrow-button"_spr);
-    m_buttonMenu->addChildAtPosition(m_leftArrowButton, Anchor::Left, {(m_leftArrowButton->getContentWidth() / 2) + 7.f, -13.f});
-
-    /* Right Arrow Button */
-    auto rightArrowSpr = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
-    rightArrowSpr->setScale(0.8f);
-    rightArrowSpr->setFlipX(true);
-
-    m_rightArrowButton =
-        CCMenuItemSpriteExtra::create(rightArrowSpr, this, menu_selector(GDrivePopup::onSlotPageRight));
-    m_rightArrowButton->setID("right-arrow-button"_spr);
-    m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right, {-(m_rightArrowButton->getContentWidth() / 2) - 7.f, -13.f});
+    /* size info button */
+    auto sizeInfoIconSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
+    // sizeInfoIconSpr->setScale(0.6f);
+    auto sizeInfoButton = CCMenuItemSpriteExtra::create(sizeInfoIconSpr, this, menu_selector(GDrivePopup::onSizeInfo));
+    sizeInfoButton->setID("size-info-button"_spr);
+    m_buttonMenu->addChildAtPosition(sizeInfoButton, Anchor::TopRight, {-3.f, -3.f});
 
     /* Popup Column */
     auto popupColumn = CCMenu::create();
@@ -81,6 +63,23 @@ bool GDrivePopup::init()
     m_slotRow->setAnchorPoint({0.5f, 0.5f});
     m_slotRow->setID("slot-row"_spr);
     popupColumn->addChild(m_slotRow);
+
+    /* Left Arrow Button */
+    auto leftArrowSpr = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
+    leftArrowSpr->setScale(0.8f);
+
+    m_leftArrowButton = CCMenuItemSpriteExtra::create(leftArrowSpr, this, menu_selector(GDrivePopup::onSlotPageLeft));
+    m_leftArrowButton->setID("left-arrow-button"_spr);
+    m_buttonMenu->addChildAtPosition(m_leftArrowButton, Anchor::Left, {(m_leftArrowButton->getContentWidth() / 2) + 7.f, -13.f});
+
+    /* Right Arrow Button */
+    auto rightArrowSpr = CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png");
+    rightArrowSpr->setScale(0.8f);
+    rightArrowSpr->setFlipX(true);
+
+    m_rightArrowButton = CCMenuItemSpriteExtra::create(rightArrowSpr, this, menu_selector(GDrivePopup::onSlotPageRight));
+    m_rightArrowButton->setID("right-arrow-button"_spr);
+    m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right, {-(m_rightArrowButton->getContentWidth() / 2) - 7.f, -13.f});
 
     /* Page Button Row */
     m_pageButtonsRow = CCMenu::create();
@@ -164,11 +163,11 @@ bool GDrivePopup::init()
     topLeftCorner->setID("top-left-corner"_spr);
     m_mainLayer->addChildAtPosition(topLeftCorner, Anchor::TopLeft);
 
-    auto bottomRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
-    bottomRightCorner->setAnchorPoint({1.f, 0});
-    bottomRightCorner->setFlipX(true);
-    bottomRightCorner->setID("bottom-right-corner"_spr);
-    m_mainLayer->addChildAtPosition(bottomRightCorner, Anchor::BottomRight);
+    // auto bottomRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
+    // bottomRightCorner->setAnchorPoint({1.f, 0});
+    // bottomRightCorner->setFlipX(true);
+    // bottomRightCorner->setID("bottom-right-corner"_spr);
+    // m_mainLayer->addChildAtPosition(bottomRightCorner, Anchor::BottomRight);
 
     auto topRightCorner = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
     topRightCorner->setAnchorPoint({1.f, 1.f});
@@ -177,16 +176,38 @@ bool GDrivePopup::init()
     topRightCorner->setID("top-right-corner"_spr);
     m_mainLayer->addChildAtPosition(topRightCorner, Anchor::TopRight);
 
-    if (Mod::get()->getSavedValue<bool>("show-title-hint", true) && Mod::get()->getSavedValue<int>("hide-hint") <= 15)
-    {
-        auto titleHint = CCSprite::create("titleHint.png"_spr);
-        titleHint->setAnchorPoint({0, 0.5f});
-        titleHint->setScale(0.9f);
-        titleHint->setID("title-hint"_spr);
-        m_mainLayer->addChildAtPosition(titleHint, Anchor::Left, {7.5f, (m_slotRow->getScaledContentHeight() / 2.f) - 9.f});
+    /* Bottom Right Menu */
+    auto bottomRightMenu = CCMenu::create();
+    bottomRightMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(3.f));
+    bottomRightMenu->setID("bottom-right-menu"_spr);
+    bottomRightMenu->setScale(0.6f);
+    bottomRightMenu->setAnchorPoint({1.f, 0});
+    m_mainLayer->addChildAtPosition(bottomRightMenu, Anchor::BottomRight, {-7.f, 7.f});
 
-        Mod::get()->setSavedValue<int>("hide-hint",  Mod::get()->getSavedValue<int>("hide-hint") + 1);
-    }
+    /* Edit Button */
+    auto editButtonSpr = CCSprite::createWithSpriteFrameName("GJ_editModeBtn_001.png");
+    editButtonSpr->setScale(1.05f);
+    auto editButton = CCMenuItemSpriteExtra::create(editButtonSpr, this, menu_selector(GDrivePopup::onToggleEditMode));
+    editButton->setID("edit-button"_spr);
+    bottomRightMenu->addChild(editButton);
+
+    /* Mod Settings Button */
+    auto modSettingsButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_optionsBtn_001.png"), this, menu_selector(GDrivePopup::onSettings));
+    modSettingsButton->setID("mod-settings-button"_spr);
+    bottomRightMenu->addChild(modSettingsButton);
+
+    bottomRightMenu->updateLayout();
+
+    // if (Mod::get()->getSavedValue<bool>("show-title-hint", true) && Mod::get()->getSavedValue<int>("hide-hint") <= 15)
+    // {
+    //     auto titleHint = CCSprite::create("titleHint.pn"_spr);
+    //     titleHint->setAnchorPoint({0, 0.5f});
+    //     titleHint->setScale(0.9f);
+    //     titleHint->setID("title-hint"_spr);
+    //     m_mainLayer->addChildAtPosition(titleHint, Anchor::Left, {7.5f, (m_slotRow->getScaledContentHeight() / 2.f) - 9.f});
+
+    //     Mod::get()->setSavedValue<int>("hide-hint", Mod::get()->getSavedValue<int>("hide-hint") + 1);
+    // }
     return true;
 }
 void GDrivePopup::onExitTransitionDidStart()
@@ -217,6 +238,16 @@ void GDrivePopup::onNameInfo(CCObject *sender)
             : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will <cr>overwrite</c> any other data you might have saved while signed out on other sessions/devices.\nfolder ID: <cy>{}</c>", accID),
         "Okay")
         ->show();
+}
+void GDrivePopup::onSizeInfo(CCObject *sender)
+{
+    GDriveLoadLayer *layer = GDriveLoadLayer::create();
+    layer->setMessage("Getting size information...");
+    layer->show();
+    async::spawn(GDriveManager::getInstance()->getSizeInfo(), [layer](sizeDataMap sizeData) {
+        layer->removeFromParent();
+        GDriveSizeInfoPopup::create(sizeData);
+    });
 }
 
 void GDrivePopup::onSettings(CCObject *sender)
@@ -318,7 +349,7 @@ void GDrivePopup::showSlotPage(int pageNumber)
 
         if (!m_slotBoxes[vecdex])
         {
-            m_slotBoxes[vecdex] = GDriveSlotBox::create(i);
+            m_slotBoxes[vecdex] = GDriveSlotBox::create(i, m_editMode);
             m_slotRow->addChild(m_slotBoxes[vecdex]);
         }
         else
@@ -327,6 +358,17 @@ void GDrivePopup::showSlotPage(int pageNumber)
 
     m_slotRow->updateLayout();
     m_currentSlotPage = pageNumber;
+}
+void GDrivePopup::onToggleEditMode(CCObject *sender)
+{
+    m_editMode = !m_editMode;
+    for (auto box : m_slotBoxes)
+    {
+        if (box){
+            box->setEditMode(m_editMode);
+            box->setShouldEditMode(m_editMode);
+        }
+    }
 }
 
 GDriveLoadLayer *GDrivePopup::showLoadLayer()

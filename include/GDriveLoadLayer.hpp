@@ -1,7 +1,7 @@
 #pragma once
 using namespace geode::prelude;
 
-class GDriveLoadLayer : public FLAlertLayer
+class GDriveLoadLayer : public Popup
 {
   public:
     static GDriveLoadLayer *create();
@@ -13,7 +13,6 @@ class GDriveLoadLayer : public FLAlertLayer
 
   private:
     bool init() override;
-    void registerWithTouchDispatcher() override;
 
     size_t m_total = 0;
     size_t m_progress = 0;

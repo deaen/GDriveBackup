@@ -2,10 +2,10 @@
 
 #include "GDriveManager.hpp"
 
-GDriveSlotBox *GDriveSlotBox::create(int slot, float width, float height)
+GDriveSlotBox *GDriveSlotBox::create(int slot, bool enableEditMode, float width, float height)
 {
     auto ret = new GDriveSlotBox();
-    if (ret->init(slot, width, height))
+    if (ret->init(slot, enableEditMode, width, height))
     {
         ret->autorelease();
         return ret;
@@ -17,28 +17,32 @@ GDriveSlotBox *GDriveSlotBox::create(int slot, float width, float height)
 
 void GDriveSlotBox::onExitTransitionDidStart()
 {
-    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Save, m_slot);
-    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Metadata, m_slot);
+    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Save, getSlot());
+    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Metadata, getSlot());
 
     CCNode::onExitTransitionDidStart();
 }
 
-bool GDriveSlotBox::init(int slot, float width, float height)
+bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float height)
 {
     if (!CCNode::init())
         return false;
+
     m_slot = slot;
+    m_editMode = enableEditMode;
+    m_shouldEditMode = enableEditMode;
+
     this->setContentSize({width, height});
     this->setAnchorPoint({0.5f, 0.5f});
-    this->setID(fmt::format("slot-box-{}", m_slot));
+    this->setID(fmt::format("slot-box-{}", getSlot()));
 
-    /* Box Background */
+    /* Background */
     auto backgroundSpr = NineSlice::create("square02b_001.png");
     backgroundSpr->setInsets({backgroundSpr->getContentWidth() / 3.f, backgroundSpr->getContentHeight() / 3.f, backgroundSpr->getContentWidth() / 3.f, backgroundSpr->getContentHeight() / 3.f});
     backgroundSpr->setAnchorPoint({0.5, 0.5});
     backgroundSpr->setColor({53, 79, 179});
     backgroundSpr->setContentSize({width - 5.f, height + 10.f});
-    backgroundSpr->setID("m_slot-background"_spr);
+    backgroundSpr->setID("background"_spr);
     this->addChildAtPosition(backgroundSpr, Anchor::Center);
 
     /* Borders */
@@ -68,36 +72,27 @@ bool GDriveSlotBox::init(int slot, float width, float height)
     leftBorder->setID("left-border"_spr);
     this->addChildAtPosition(leftBorder, Anchor::Left);
 
-    /* m_menu */
+    /* Menu */
     m_menu = CCMenu::create();
     m_menu->setContentSize({width, height - 5.f});
-    m_menu->setLayout(
-        (m_slot != 0) // m_slot 0 = automatic m_slot
-            ? ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between)
-            : RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between));
+    m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between)); // row: RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between)
     m_menu->setID("menu"_spr);
-    float buttonSize = m_menu->getScaledContentWidth() + 5.f;
 
     /* Title */
     m_slotTitle = TextInput::create(this->getContentWidth(), "enter slot title", "bigFont.fnt");
-    m_slotTitle->setString(fmt::format("Slot {}", m_slot));
+    m_slotTitle->setString(fmt::format("Slot {}", getSlot()));
     m_slotTitle->hideBG();
+    m_slotTitle->setEnabled(false);
     m_slotTitle->setCommonFilter(CommonFilter::Any);
-    m_slotTitle->setMaxCharCount(100);
+    m_slotTitle->setMaxCharCount(30);
     m_slotTitle->getInputNode()->setMaxLabelScale(1.f);
-    m_slotTitle->setCallback([this](auto const &) {
-        m_confirmButton->setVisible(true);
-        m_infoRow->setVisible(false);
-        m_menu->updateLayout();
-        m_slotTitle->setCallbackEnabled(false);
-    });
     m_slotTitle->setAnchorPoint({0.5f, 0.5f});
     m_slotTitle->setID("slot-title"_spr);
 
     /* Info Row */
     m_infoRow = CCNode::create();
     m_infoRow->setLayout(RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Center));
-    m_infoRow->setContentWidth((m_slot != 0) ? m_menu->getScaledContentWidth() + 17.f : (width / 2.f));
+    m_infoRow->setContentWidth(m_menu->getScaledContentWidth() + 17.f); //  + 17.f // row: (width / 2.f)
     m_infoRow->setAnchorPoint({0.5f, 0.5f});
     m_infoRow->setID("info-row"_spr);
 
@@ -140,112 +135,140 @@ bool GDriveSlotBox::init(int slot, float width, float height)
 
     m_infoRow->updateLayout();
 
+    /* Edit Menu */
+    m_editMenu = CCMenu::create();
+    m_editMenu->setLayout(ColumnLayout::create()->setGap(0)->setAxisAlignment(AxisAlignment::End));
+    m_editMenu->setID("edit-menu"_spr);
+    m_editMenu->setScale(0.45f);
+    m_editMenu->setAnchorPoint({.5f, 1.f});
+    this->addChildAtPosition(m_editMenu, Anchor::TopLeft, {10.f, 8.f});
+
+    /*Title Button*/
+    m_titleButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::create(CCLabelBMFont::create("A", "bigFont.fnt"), CircleBaseColor::Green, CircleBaseSize::Small), this, menu_selector(GDriveSlotBox::onConfirmTitle));
+    m_titleButton->setID("title-button"_spr);
+    m_editMenu->addChild(m_titleButton);
+
+    /* Delete Button */
+    m_deleteButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_deleteSongBtn_001.png"), this, menu_selector(GDriveSlotBox::onDelete));
+    m_deleteButton->setID("delete-button"_spr);
+    m_editMenu->addChild(m_deleteButton);
+
+    /* Loading Spinner */
+    m_editSpinner = LoadingSpinner::create(40.f);
+    m_editSpinner->setID("edit-spinner"_spr);
+    m_editMenu->addChild(m_editSpinner);
+
+    m_titleButton->setVisible(false);
+    m_deleteButton->setVisible(false);
+    m_editSpinner->setVisible(false);
+    m_editMenu->updateLayout();
+
+    /*
+    if (getSlot() == 0)
+     {
+         // Auto Slot Text Column
+         auto textColumn = CCNode::create();
+         textColumn->setLayout(ColumnLayout::create()
+                                   ->setAxisReverse(true)
+                                   ->setAutoScale(true)
+                                   ->setAxisAlignment(AxisAlignment::Between)
+                                   ->setCrossAxisLineAlignment(AxisAlignment::Start));
+         textColumn->setContentHeight(m_menu->getContentHeight());
+         textColumn->setID("text-column"_spr);
+
+         // m_slotTitle->setCString("Automatic Backup");
+         // add title and info to column
+         textColumn->addChild(m_slotTitle);
+
+         textColumn->addChild(m_infoRow);
+
+         textColumn->updateLayout();
+         m_menu->addChild(textColumn);
+
+         auto buttonColumn = CCMenu::create();
+         buttonColumn->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(false)->setAxisAlignment(
+             AxisAlignment::Between));
+         buttonColumn->setContentSize({width / 4.f, m_menu->getContentHeight()});
+         buttonColumn->setID("button-column"_spr);
+
+         m_loadButton->setScale(0.9);
+         m_loadButton->m_baseScale = 0.9;
+         buttonColumn->addChild(m_loadButton);
+
+         //Freq Label
+         auto freqLabel = CCLabelBMFont::create("Every 6 hours", "goldFont.fnt");
+         freqLabel->setScale(0.35f);
+         freqLabel->setID("freq-label"_spr);
+         buttonColumn->addChild(freqLabel);
+
+         buttonColumn->updateLayout();
+         m_menu->addChild(buttonColumn);
+
+         m_menu->setContentWidth(width - 45.f);
+     }
+     else
+     {
+     */
+
+    // Add children to m_menu
+    m_menu->addChild(m_slotTitle);
+    m_menu->addChild(m_infoRow);
+
+    /* separator */
+    m_separator = NineSlice::createWithSpriteFrameName("floorLine_01_001.png");
+    m_separator->setInsetLeft(m_separator->getContentWidth() / 3);
+    m_separator->setContentSize({m_menu->getScaledContentWidth(), 1.f});
+    m_separator->setID("separator"_spr);
+    m_menu->addChild(m_separator);
+
+    /* Save Button */
+    m_saveButtonSprite = ButtonSprite::create("Save", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_01.png");
+    m_saveButton = CCMenuItemSpriteExtra::create(m_saveButtonSprite, this, menu_selector(GDriveSlotBox::onSave));
+    m_saveButton->setID("save-button"_spr);
+    m_saveButton->m_scaleMultiplier = 1.1f;
+    m_menu->addChild(m_saveButton);
+
     /* Load Button */
-    m_loadButtonSprite = ButtonSprite::create("Load", (m_slot != 0) ? buttonSize : (width / 4.f), (m_slot != 0) ? buttonSize : (width / 4.f), 1.f, false, "goldFont.fnt", "GJ_button_01.png");
+    m_loadButtonSprite = ButtonSprite::create("Load", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_01.png");
     m_loadButton = CCMenuItemSpriteExtra::create(m_loadButtonSprite, this, menu_selector(GDriveSlotBox::onLoad));
     m_loadButton->setID("load-button"_spr);
     m_loadButton->m_scaleMultiplier = 1.1f;
+    m_menu->addChild(m_loadButton);
 
-    if (m_slot == 0)
-    {
-        /* Auto Slot Text Column */
-        auto textColumn = CCNode::create();
-        textColumn->setLayout(ColumnLayout::create()
-                                  ->setAxisReverse(true)
-                                  ->setAutoScale(true)
-                                  ->setAxisAlignment(AxisAlignment::Between)
-                                  ->setCrossAxisLineAlignment(AxisAlignment::Start));
-        textColumn->setContentHeight(m_menu->getContentHeight());
-        textColumn->setID("text-column"_spr);
+    /* Status Message */
+    m_statusMessage = CCLabelBMFont::create("Waiting...", "goldFont.fnt");
+    m_statusMessage->setID("status-message"_spr);
+    m_menu->addChild(m_statusMessage);
 
-        // m_slotTitle->setCString("Automatic Backup");
-        // add title and info to column
-        textColumn->addChild(m_slotTitle);
+    /* Status Percentage */
+    m_statusPercentage = CCLabelBMFont::create("0% (0/0MB)", "goldFont.fnt");
+    m_statusPercentage->setID("status-percentage"_spr);
+    m_statusPercentage->setLayoutOptions(AxisLayoutOptions::create()->setNextGap(10.f)->setRelativeScale(0.6f));
+    m_menu->addChild(m_statusPercentage);
 
-        textColumn->addChild(m_infoRow);
+    /* Cancel Button */
+    m_statusCancel = CCMenuItemSpriteExtra::create(ButtonSprite::create("Cancel", "bigFont.fnt", "GJ_button_06.png"), this, menu_selector(GDriveSlotBox::onCancel));
+    m_statusCancel->setID("cancel-button"_spr);
+    m_statusCancel->setLayoutOptions(AxisLayoutOptions::create()->setRelativeScale(0.5f));
+    m_menu->addChild(m_statusCancel);
 
-        textColumn->updateLayout();
-        m_menu->addChild(textColumn);
+    /* Loading Spinner */
+    m_statusSpinner = LoadingSpinner::create(60.f);
+    m_statusSpinner->setID("status-spinner"_spr);
+    m_menu->addChild(m_statusSpinner);
 
-        auto buttonColumn = CCMenu::create();
-        buttonColumn->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(false)->setAxisAlignment(
-            AxisAlignment::Between));
-        buttonColumn->setContentSize({width / 4.f, m_menu->getContentHeight()});
-        buttonColumn->setID("button-column"_spr);
-
-        m_loadButton->setScale(0.9);
-        m_loadButton->m_baseScale = 0.9;
-        buttonColumn->addChild(m_loadButton);
-
-        /*Freq Label*/
-        auto freqLabel = CCLabelBMFont::create("Every 6 hours", "goldFont.fnt");
-        freqLabel->setScale(0.35f);
-        freqLabel->setID("freq-label"_spr);
-        buttonColumn->addChild(freqLabel);
-
-        buttonColumn->updateLayout();
-        m_menu->addChild(buttonColumn);
-
-        m_menu->setContentWidth(width - 45.f);
-    }
-    else
-    {
-        // Add children to m_menu
-        m_menu->addChild(m_slotTitle);
-        m_menu->addChild(m_infoRow);
-
-        /* Confirm Button */
-        m_confirmButton = CCMenuItemSpriteExtra::create(ButtonSprite::create("Confirm", "goldFont.fnt", "GJ_button_01.png"), this, menu_selector(GDriveSlotBox::onConfirmTitle));
-        m_confirmButton->setID("confirm-button"_spr);
-        m_confirmButton->setLayoutOptions(AxisLayoutOptions::create()->setRelativeScale(0.7f));
-        m_confirmButton->setVisible(false);
-        m_menu->addChild(m_confirmButton);
-
-        /* separator */
-        m_separator = NineSlice::createWithSpriteFrameName("floorLine_01_001.png");
-        m_separator->setInsetLeft(m_separator->getContentWidth() / 3);
-        m_separator->setContentSize({m_menu->getScaledContentWidth(), 1.f});
-        m_separator->setID("separtor"_spr);
-        m_menu->addChild(m_separator);
-
-        /* Save Button */
-        m_saveButtonSprite =
-            ButtonSprite::create("Save", buttonSize, buttonSize, 1.f, false, "goldFont.fnt", "GJ_button_01.png");
-        m_saveButton = CCMenuItemSpriteExtra::create(m_saveButtonSprite, this, menu_selector(GDriveSlotBox::onSave));
-        m_saveButton->setID("save-button"_spr);
-        m_saveButton->m_scaleMultiplier = 1.1f;
-        m_menu->addChild(m_saveButton);
-        m_menu->addChild(m_loadButton);
-
-        /* Status Message */
-        m_statusMessage = CCLabelBMFont::create("Waiting...", "goldFont.fnt");
-        m_statusMessage->setID("status-message"_spr);
-        m_menu->addChild(m_statusMessage);
-
-        /* Status Percentage*/
-        m_statusPercentage = CCLabelBMFont::create("0% (0/0MB)", "goldFont.fnt");
-        m_statusPercentage->setID("status-percentage"_spr);
-        m_statusPercentage->setLayoutOptions(AxisLayoutOptions::create()->setNextGap(10.f)->setRelativeScale(0.6f));
-        m_menu->addChild(m_statusPercentage);
-
-        /* Cancel Button*/
-        m_statusCancel = CCMenuItemSpriteExtra::create(ButtonSprite::create("Cancel", "bigFont.fnt", "GJ_button_06.png"), this, menu_selector(GDriveSlotBox::onCancel));
-        m_statusCancel->setID("cancel-button"_spr);
-        m_statusCancel->setLayoutOptions(AxisLayoutOptions::create()->setRelativeScale(0.5f));
-        m_menu->addChild(m_statusCancel);
-
-        /* Loading Spinner */
-        m_statusSpinner = LoadingSpinner::create(60.f);
-        m_statusSpinner->setID("status-spinner"_spr);
-        m_menu->addChild(m_statusSpinner);
-    }
+    // }
 
     setStatusVisiblity(false);
-    m_menu->updateLayout();
     this->addChildAtPosition(m_menu, Anchor::Center);
-    this->updateLayout();
-    m_slotTitle->setEnabled(false);
 
+    updateStatus();
+
+    return true;
+}
+
+void GDriveSlotBox::updateStatus()
+{
     auto saveStatus = GDriveManager::getInstance()->checkStatus(GDriveManager::Save, this);
     if (saveStatus == GDriveManager::Working)
     {
@@ -253,17 +276,30 @@ bool GDriveSlotBox::init(int slot, float width, float height)
         showPercentage(GDriveManager::getInstance()->getSaveTotal());
         setStatusPercentage(GDriveManager::getInstance()->getSaveProgress());
         setStatusMessage("Saving...");
+
+        setEditMode(false);
     }
     else if (saveStatus == GDriveManager::Waiting)
     {
         setStatusVisiblity(true);
         setStatusMessage("Waiting...");
+
+        setEditMode(false);
     }
     else
     {
+        setMetadataStatus(true);
+
+        if (getEditMode())
+        {
+            setShouldEditMode(true);
+            setEditMode(true);
+        }
+
         GDriveManager::getInstance()->addToQueue(GDriveManager::Metadata, this);
-        auto savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, m_slot), -1);
-        if (savedTimestamp == -1)
+
+        auto m_savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, getSlot()), -1);
+        if (m_savedTimestamp == -1)
         {
             setStatusVisiblity(true);
             setStatusMessage("Loading...");
@@ -275,22 +311,28 @@ bool GDriveSlotBox::init(int slot, float width, float height)
         auto action = CCRepeatForever::create(CCSequence::createWithTwoActions(CCFadeTo::create(duration, 55), CCFadeTo::create(duration, 255)));
         action->setTag(1);
         m_slotTitle->getInputNode()->getTextLabel()->runAction(action);
-        m_slotTitle->setEnabled(false);
     }
-    return true;
 }
 
 void GDriveSlotBox::onSave(CCObject *sender)
 {
     createQuickPopup(
-        fmt::format("Save Slot {}", m_slot).c_str(),
-        fmt::format("Do you want to <cg>save</c> your data to <cj>slot {}</c>?\n<cy>This will</c> <cr>overwrite</c> <cy>any previously saved data to this slot!</c>", m_slot).c_str(),
+        fmt::format("Save Slot {}", getSlot()).c_str(),
+        fmt::format("Do you want to <cg>save</c> your data to <cj>slot {}</c>?\n<cy>This will</c> <cr>overwrite</c> <cy>any previously saved data to this slot!</c>", getSlot()).c_str(),
         "Cancel", "Save",
         [this](auto, bool btn2) {
             if (btn2)
             {
+                setWorkingStatus(true);
                 setStatusVisiblity(true);
                 setStatusMessage("Waiting...");
+
+                if (getEditMode())
+                {
+                    setShouldEditMode(true);
+                    setEditMode(true);
+                }
+
                 GDriveManager::getInstance()->addToQueue(GDriveManager::Save, this);
             }
         },
@@ -300,12 +342,12 @@ void GDriveSlotBox::onSave(CCObject *sender)
 void GDriveSlotBox::onLoad(CCObject *sender)
 {
     createQuickPopup(
-        fmt::format("Load Slot {}", m_slot).c_str(),
-        fmt::format("Do you want to <cg>load</c> your <cj>slot {}</c> data?\n<cy>This will merge your data!</c>", m_slot).c_str(),
+        fmt::format("Load Slot {}", getSlot()).c_str(),
+        fmt::format("Do you want to <cg>load</c> your <cj>slot {}</c> data?\n<cy>This will merge your data!</c>", getSlot()).c_str(),
         "Cancel", "Load",
         [this](auto, bool btn2) {
             if (btn2)
-                GDriveManager::getInstance()->loadData(m_slot);
+                GDriveManager::getInstance()->loadData(getSlot());
         },
         true, true);
 }
@@ -313,28 +355,72 @@ void GDriveSlotBox::onLoad(CCObject *sender)
 void GDriveSlotBox::onCancel(CCObject *sender)
 {
     createQuickPopup(
-        fmt::format("Cancel Save to Slot {}", m_slot).c_str(),
-        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", m_slot).c_str(), "Continue", "Cancel",
+        fmt::format("Cancel Save to Slot {}", getSlot()).c_str(),
+        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", getSlot()).c_str(), "Continue", "Cancel",
         [this](auto, bool btn2) {
             if (btn2)
             {
                 setStatusVisiblity(false);
-                GDriveManager::getInstance()->removeFromQueue(GDriveManager::Save, m_slot);
+                GDriveManager::getInstance()->removeFromQueue(GDriveManager::Save, getSlot());
             }
         },
         true, true);
+}
+void GDriveSlotBox::onDelete(CCObject *sender)
+{
+    auto deletePopup = createQuickPopup(
+        "Delete save file",
+        fmt::format("Are you sure you want to <cr>permanently delete</c> <cy>slot {}'s</c> save file? This is irreversible!\n<cg>(Tip: moving the save file to the trash in the google drive website/app is also an option!)</c>", getSlot()),
+        "Cancel",
+        "Delete",
+        [this](auto, bool btn2) {
+            if (!btn2)
+            {
+                return;
+            }
+            auto doubleUp = createQuickPopup(
+                "Double check",
+                "Double checking if you really want to <cr>permanently delete</c> this save? There is no going back...",
+                "Cancel",
+                "Really delete",
+                [this](auto, bool btn2) {
+                    if (btn2)
+                    {
+                        GDriveLoadLayer *layer = GDriveLoadLayer::create();
+                        layer->setMessage(fmt::format("Deleting Slot {}...", getSlot()));
+                        layer->show();
+                        async::spawn(GDriveManager::getInstance()->deleteFile(getSlot()), [layer, this](bool ok) {
+                            layer->removeFromParent();
+                            if (ok)
+                            {
+                                Notification::create(fmt::format("Save {} successfully deleted", getSlot()), NotificationIcon::Success, 3.f)->show();
+                                updateStatus();
+                            }
+                        });
+                    }
+                },
+                false,
+                true);
+            doubleUp->m_button2->updateBGImage("GJ_button_06.png");
+            doubleUp->show();
+        },
+        false,
+        true);
+
+    deletePopup->m_button2->updateBGImage("GJ_button_06.png");
+    deletePopup->show();
 }
 
 void GDriveSlotBox::onConfirmTitle(CCObject *sender)
 {
     auto input = m_slotTitle->getString();
-    createQuickPopup((input.empty()) ? "Reset slot title" : "Change slot title", (input.empty()) ? fmt::format("Do you Want to <cr>reset</c> slot {}'s title to default?", m_slot) : fmt::format("Do you Want to change slot {}'s title to <cy>{}</c>?\n<cl>(the new title will be uploaded to google drive)</c>", m_slot, input), "Cancel", "Confirm", [input, this](auto, bool btn2) {
+    createQuickPopup((input.empty()) ? "Reset slot title" : "Change slot title", (input.empty()) ? fmt::format("<cr>Reset</c> slot {}'s title to default?", getSlot()) : fmt::format("Change slot {}'s title to <cy>{}</c>?\n<cl>(the new title will be uploaded to google drive)</c>", getSlot(), input), "Cancel", "Confirm", [input, this](auto, bool btn2) {
         if (btn2)
         {
             GDriveLoadLayer *layer = GDriveLoadLayer::create();
             layer->setMessage("Setting new title...");
             layer->show();
-            async::spawn(GDriveManager::getInstance()->setDescription(input, m_slot), [layer, this](bool ok) {
+            async::spawn(GDriveManager::getInstance()->setDescription(input, getSlot()), [layer, this](bool ok) {
                 layer->removeFromParent();
                 if (ok)
                 {
@@ -346,7 +432,6 @@ void GDriveSlotBox::onConfirmTitle(CCObject *sender)
         else
             updateInfo();
 
-        m_confirmButton->setVisible(false);
         m_infoRow->setVisible(true);
         m_menu->updateLayout();
         m_slotTitle->setCallbackEnabled(true);
@@ -357,7 +442,6 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
 {
     if (visible)
     {
-
         m_infoRow->setVisible(false);
         m_saveButton->setVisible(false);
         m_loadButton->setVisible(false);
@@ -368,7 +452,6 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusSpinner->setContentSize({60.f, 60.f});
         m_statusSpinner->updateLayout();
 
-        m_slotTitle->setEnabled(false);
         m_slotTitle->getInputNode()->getTextLabel()->setOpacity(255);
     }
     else
@@ -381,22 +464,18 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusPercentage->setVisible(false);
         m_statusSpinner->setVisible(false);
         m_statusCancel->setVisible(false);
-
-        m_slotTitle->setEnabled(true);
     }
-
-    m_confirmButton->setVisible(false);
 
     m_menu->updateLayout();
 }
 
 void GDriveSlotBox::updateInfo()
 {
-    auto savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, m_slot));
-    auto savedSize = Mod::get()->getSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, m_slot));
-    auto savedDescription = Mod::get()->getSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, m_slot));
+    m_savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, getSlot()));
+    m_savedSize = Mod::get()->getSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, getSlot()));
+    m_savedDescription = Mod::get()->getSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, getSlot()));
 
-    if (savedSize == 0)
+    if (m_savedSize == 0)
     {
         m_timeLabel->setCString("Never Saved");
         m_dateLabel->setVisible(false);
@@ -404,27 +483,27 @@ void GDriveSlotBox::updateInfo()
         m_loadButton->setEnabled(false);
         m_loadButtonSprite->setOpacity(175);
         m_loadButtonSprite->setColor(ccGRAY);
-        m_slotTitle->setEnabled(false);
+        m_empty = true;
     }
     else
     {
-        auto time = localtime(savedTimestamp);
+        auto time = localtime(m_savedTimestamp);
         m_timeLabel->setCString(fmt::format("{:%-I:%M %p}", time).c_str());
         m_timeLabel->setVisible(true);
 
         m_dateLabel->setCString(fmt::format("{:%b %-d, %Y}", time).c_str());
-        m_sizeLabel->setCString(fmt::format("{:.2f}MB", savedSize / (1024.f * 1024.f)).c_str());
+        m_dateLabel->setVisible(true);
+
+        m_sizeLabel->setCString(fmt::format("{:.2f}MB", m_savedSize / (1024.f * 1024.f)).c_str());
+        m_sizeLabel->setVisible(true);
 
         m_loadButton->setEnabled(true);
         m_loadButtonSprite->setOpacity(255);
         m_loadButtonSprite->setColor({255, 255, 255});
-        m_slotTitle->setEnabled(true);
-        if (savedDescription.empty())
-            m_slotTitle->setString(fmt::format("Slot {}", m_slot));
-        else{
-            m_slotTitle->setString(savedDescription);
-            Mod::get()->setSavedValue<bool>("show-title-hint", false);
-        }
+        if (m_savedDescription.empty())
+            m_slotTitle->setString(fmt::format("Slot {}", getSlot()));
+        else
+            m_slotTitle->setString(m_savedDescription);
     }
 
     m_slotTitle->getInputNode()->getTextLabel()->stopActionByTag(1);
@@ -434,6 +513,51 @@ void GDriveSlotBox::updateInfo()
     m_infoRow->updateLayout();
     m_menu->updateLayout();
 }
+
+void GDriveSlotBox::setEditMode(bool on)
+{
+    m_editMode = on;
+
+    const bool isBusy = m_busy || m_gettingMetadata;
+    const bool showEditControls = m_editMode && !isBusy && !m_empty;
+
+    m_slotTitle->getBGSprite()->setVisible(showEditControls);
+    m_slotTitle->setEnabled(showEditControls);
+
+    m_titleButton->setVisible(showEditControls);
+    m_deleteButton->setVisible(showEditControls);
+
+    m_editSpinner->setVisible(m_editMode && isBusy && !m_empty);
+
+    if (!m_editMode)
+        updateInfo();
+
+    m_editMenu->updateLayout();
+}
+
+void GDriveSlotBox::setShouldEditMode(bool should)
+{
+    m_shouldEditMode = should;
+}
+
+void GDriveSlotBox::setWorkingStatus(bool busy)
+{
+    m_busy = busy;
+}
+
+void GDriveSlotBox::setMetadataStatus(bool gettingMetadata)
+{
+    m_gettingMetadata = gettingMetadata;
+}
+bool GDriveSlotBox::getEditMode()
+{
+    return m_editMode;
+}
+
+bool GDriveSlotBox::getShouldEditMode()
+{
+    return m_shouldEditMode;
+};
 
 int GDriveSlotBox::getSlot()
 {
@@ -464,7 +588,7 @@ void GDriveSlotBox::setStatusPercentage(size_t progress)
     m_progress = progress;
 }
 
-float GDriveSlotBox::getcalculatedScale(float childWidth, float childScale)
+float GDriveSlotBox::getCalculatedScale(float childWidth, float childScale)
 {
     return (childWidth > this->getContentWidth()) ? (this->getContentWidth()) / childWidth : childScale;
 }

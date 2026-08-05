@@ -3,14 +3,14 @@
 #include "picosha2.h"
 #include "plusaes.hpp"
 
-GDriveEncypt *GDriveEncypt::create()
+GDriveEncrypt *GDriveEncrypt::create()
 {
-    auto ret = new GDriveEncypt();
+    auto ret = new GDriveEncrypt();
     ret->autorelease();
     return ret;
 }
 
-EncStr GDriveEncypt::encryptString(const std::string_view data)
+EncStr GDriveEncrypt::encryptString(const std::string_view data)
 {
     std::string raw = data.data();
 
@@ -29,7 +29,7 @@ EncStr GDriveEncypt::encryptString(const std::string_view data)
     return {raw, iv, std::string(reinterpret_cast<const char *>(tag))};
 }
 
-std::string GDriveEncypt::decryptString(const EncStr &data)
+std::string GDriveEncrypt::decryptString(const EncStr &data)
 {
     std::string raw = data[0];
     const std::string iv = data[1];
@@ -50,7 +50,7 @@ std::string GDriveEncypt::decryptString(const EncStr &data)
 #if defined(GEODE_IS_WINDOWS)
 #include <windows.h>
 
-std::string GDriveEncypt::getHardwareID()
+std::string GDriveEncrypt::getHardwareID()
 {
     std::string hardwareID;
 
@@ -82,7 +82,7 @@ std::string GDriveEncypt::getHardwareID()
 #include "GDriveManager.hpp"
 #include <Geode/cocos/platform/android/jni/JniHelper.h>
 
-std::string GDriveEncypt::getHardwareID()
+std::string GDriveEncrypt::getHardwareID()
 {
     return GDriveManager::getInstance()->m_androidID;
 }
@@ -91,7 +91,7 @@ std::string GDriveEncypt::getHardwareID()
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 
-std::string GDriveEncypt::getHardwareID()
+std::string GDriveEncrypt::getHardwareID()
 {
     std::string hardwareID;
 
@@ -120,7 +120,7 @@ std::string GDriveEncypt::getHardwareID()
 #elif defined(GEODE_IS_IOS)
 std::string iosGetHardwareID();
 
-std::string GDriveEncypt::getHardwareID()
+std::string GDriveEncrypt::getHardwareID()
 {
     return iosGetHardwareID();
 }

@@ -19,7 +19,7 @@ class $modify(GDriveMenuLayer, MenuLayer)
 
         if (auto menu = this->getChildByID("bottom-menu"))
         {
-            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite("icon.png"_spr, 1.f, CircleBaseColor::Green, CircleBaseSize::MediumAlt), this, menu_selector(GDriveMenuLayer::onGDriveButton));
+            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Green, CircleBaseSize::MediumAlt), this, menu_selector(GDriveMenuLayer::onGDriveButton));
             gdriveButton->setID("gdrive-bottom-button"_spr);
             menu->addChild(gdriveButton);
             menu->updateLayout();
@@ -43,7 +43,7 @@ class $modify(GDriveAccountLayer, AccountLayer)
         if (auto menu = CCMenu::create())
         {
 
-            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite("icon.png"_spr, 1.f, CircleBaseColor::Pink, CircleBaseSize::BigAlt), this, menu_selector(GDriveAccountLayer::onGDriveButton));
+            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Pink, CircleBaseSize::BigAlt), this, menu_selector(GDriveAccountLayer::onGDriveButton));
             gdriveButton->setID("gdrive-button"_spr);
 
             menu->setContentSize(gdriveButton->getScaledContentSize());

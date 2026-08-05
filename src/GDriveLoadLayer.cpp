@@ -50,12 +50,6 @@ bool GDriveLoadLayer::init()
     return true;
 }
 
-void GDriveLoadLayer::registerWithTouchDispatcher()
-{
-    FLAlertLayer::registerWithTouchDispatcher();
-    CCTouchDispatcher::get()->addPrioTargetedDelegate(static_cast<CCTouchDelegate *>(this), CCTouchDispatcher::get()->getTargetPrio(), true);
-}
-
 void GDriveLoadLayer::showPercentage(const size_t total)
 {
     m_total = total;
