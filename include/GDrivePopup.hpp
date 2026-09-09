@@ -2,6 +2,7 @@
 using namespace geode::prelude;
 
 #include "GDriveLoadLayer.hpp"
+#include "GDriveRevisionPopup.hpp"
 #include "GDriveSlotBox.hpp"
 
 class GDrivePopup : public Popup

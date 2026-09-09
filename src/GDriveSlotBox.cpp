@@ -135,33 +135,39 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
 
     m_infoRow->updateLayout();
 
-    /* Edit Menu */
-    m_editMenu = CCMenu::create();
-    m_editMenu->setLayout(ColumnLayout::create()->setGap(0)->setAxisAlignment(AxisAlignment::End));
-    m_editMenu->setID("edit-menu"_spr);
-    m_editMenu->setScale(0.45f);
-    m_editMenu->setAnchorPoint({.5f, 1.f});
-    this->addChildAtPosition(m_editMenu, Anchor::TopLeft, {10.f, 8.f});
+    // /* Edit Menu */
+    // m_editMenu = CCMenu::create();
+    // m_editMenu->setLayout(ColumnLayout::create()->setGap(0)->setAxisAlignment(AxisAlignment::End));
+    // m_editMenu->setID("edit-menu"_spr);
+    // m_editMenu->setScale(0.45f);
+    // m_editMenu->setAnchorPoint({.5f, 1.f});
+    // this->addChildAtPosition(m_editMenu, Anchor::TopLeft, {10.f, 8.f});
 
-    /*Title Button*/
-    m_titleButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::create(CCLabelBMFont::create("A", "bigFont.fnt"), CircleBaseColor::Green, CircleBaseSize::Small), this, menu_selector(GDriveSlotBox::onConfirmTitle));
-    m_titleButton->setID("title-button"_spr);
-    m_editMenu->addChild(m_titleButton);
+    // /*Title Button*/
+    // m_titleButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::create(CCLabelBMFont::create("A", "bigFont.fnt"), CircleBaseColor::Green, CircleBaseSize::Small), this, menu_selector(GDriveSlotBox::onConfirmTitle));
+    // m_titleButton->setID("title-button"_spr);
+    // m_editMenu->addChild(m_titleButton);
 
-    /* Delete Button */
-    m_deleteButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_deleteSongBtn_001.png"), this, menu_selector(GDriveSlotBox::onDelete));
-    m_deleteButton->setID("delete-button"_spr);
-    m_editMenu->addChild(m_deleteButton);
+    // /* Revision Button */
+    // m_revisionButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::create(CCSprite::createWithSpriteFrameName("GJ_sRecentIcon_001.png"), CircleBaseColor::Green, CircleBaseSize::Small), this, menu_selector(GDriveSlotBox::onRevision));
+    // m_revisionButton->setID("revision-button"_spr);
+    // m_editMenu->addChild(m_revisionButton);
 
-    /* Loading Spinner */
-    m_editSpinner = LoadingSpinner::create(40.f);
-    m_editSpinner->setID("edit-spinner"_spr);
-    m_editMenu->addChild(m_editSpinner);
+    // /* Delete Button */
+    // m_deleteButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_deleteSongBtn_001.png"), this, menu_selector(GDriveSlotBox::onDelete));
+    // m_deleteButton->setID("delete-button"_spr);
+    // m_editMenu->addChild(m_deleteButton);
 
-    m_titleButton->setVisible(false);
-    m_deleteButton->setVisible(false);
-    m_editSpinner->setVisible(false);
-    m_editMenu->updateLayout();
+    // /* Loading Spinner */
+    // m_editSpinner = LoadingSpinner::create(40.f);
+    // m_editSpinner->setID("edit-spinner"_spr);
+    // m_editMenu->addChild(m_editSpinner);
+
+    // m_titleButton->setVisible(false);
+    // m_deleteButton->setVisible(false);
+    // m_revisionButton->setVisible(false);
+    // m_editSpinner->setVisible(false);
+    // m_editMenu->updateLayout();
 
     /*
     if (getSlot() == 0)
@@ -234,6 +240,31 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
     m_loadButton->setID("load-button"_spr);
     m_loadButton->m_scaleMultiplier = 1.1f;
     m_menu->addChild(m_loadButton);
+
+    /*Title Button*/
+    m_titleButtonSprite = ButtonSprite::create("Update Title", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_04.png");
+    m_titleButton = CCMenuItemSpriteExtra::create(m_titleButtonSprite, this, menu_selector(GDriveSlotBox::onConfirmTitle));
+    m_titleButton->setID("title-button"_spr);
+    m_titleButton->m_scaleMultiplier = 1.1f;
+    m_menu->addChild(m_titleButton);
+
+    /* Revision Button */
+    m_revisionButtonSprite = ButtonSprite::create("Slot History", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_05.png");
+    m_revisionButton = CCMenuItemSpriteExtra::create(m_revisionButtonSprite, this, menu_selector(GDriveSlotBox::onRevision));
+    m_revisionButton->setID("revision-button"_spr);
+    m_revisionButton->m_scaleMultiplier = 1.1f;
+    m_menu->addChild(m_revisionButton);
+
+    /* Delete Button */
+    m_deleteButtonSprite = ButtonSprite::create("Delete Slot", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_06.png");
+    m_deleteButton = CCMenuItemSpriteExtra::create(m_deleteButtonSprite, this, menu_selector(GDriveSlotBox::onDelete));
+    m_deleteButton->setID("delete-button"_spr);
+    m_deleteButton->m_scaleMultiplier = 1.1f;
+    m_menu->addChild(m_deleteButton);
+
+    m_titleButton->setVisible(false);
+    m_deleteButton->setVisible(false);
+    m_revisionButton->setVisible(false);
 
     /* Status Message */
     m_statusMessage = CCLabelBMFont::create("Waiting...", "goldFont.fnt");
@@ -410,6 +441,10 @@ void GDriveSlotBox::onDelete(CCObject *sender)
     deletePopup->m_button2->updateBGImage("GJ_button_06.png");
     deletePopup->show();
 }
+void GDriveSlotBox::onRevision(CCObject *sender)
+{
+    auto popup = GDriveRevisionPopup::create(getSlot());
+}
 
 void GDriveSlotBox::onConfirmTitle(CCObject *sender)
 {
@@ -432,7 +467,8 @@ void GDriveSlotBox::onConfirmTitle(CCObject *sender)
         else
             updateInfo();
 
-        m_infoRow->setVisible(true);
+        if (!getEditMode())
+            m_infoRow->setVisible(true);
         m_menu->updateLayout();
         m_slotTitle->setCallbackEnabled(true);
     });
@@ -526,13 +562,19 @@ void GDriveSlotBox::setEditMode(bool on)
 
     m_titleButton->setVisible(showEditControls);
     m_deleteButton->setVisible(showEditControls);
+    m_revisionButton->setVisible(showEditControls);
 
-    m_editSpinner->setVisible(m_editMode && isBusy && !m_empty);
+    m_saveButton->setVisible(!showEditControls);
+    m_loadButton->setVisible(!showEditControls);
+    m_infoRow->setVisible(!showEditControls);
+    // m_separator->setVisible(!showEditControls);
+
+    // m_editSpinner->setVisible(m_editMode && isBusy && !m_empty);
 
     if (!m_editMode)
         updateInfo();
 
-    m_editMenu->updateLayout();
+    m_menu->updateLayout();
 }
 
 void GDriveSlotBox::setShouldEditMode(bool should)

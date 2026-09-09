@@ -44,10 +44,14 @@ class GDriveSlotBox : public CCNode
     LoadingSpinner *m_statusSpinner;
     CCMenuItemSpriteExtra *m_statusCancel;
 
-    CCMenu *m_editMenu;
+    // CCMenu *m_editMenu;
+    ButtonSprite *m_titleButtonSprite;
+    ButtonSprite *m_deleteButtonSprite;
+    ButtonSprite *m_revisionButtonSprite;
     CCMenuItemSpriteExtra *m_titleButton;
     CCMenuItemSpriteExtra *m_deleteButton;
-    LoadingSpinner *m_editSpinner;
+    CCMenuItemSpriteExtra *m_revisionButton;
+    // LoadingSpinner *m_editSpinner;
 
     int m_slot = 0;
     size_t m_total = 0;
@@ -64,11 +68,12 @@ class GDriveSlotBox : public CCNode
     bool m_shouldEditMode = false;
 
     void updateStatus();
-    
+
     void onSave(CCObject *sender);
     void onLoad(CCObject *sender);
     void onCancel(CCObject *sender);
     void onDelete(CCObject *sender);
+    void onRevision(CCObject *sender);
     void onConfirmTitle(CCObject *sender);
 
     float getCalculatedScale(float childWidth, float childScale);
