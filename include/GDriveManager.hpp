@@ -5,6 +5,7 @@ using namespace geode::prelude;
 #include "GDriveSigninPopup.hpp"
 
 using sizeDataMap = std::unordered_map<std::string, std::unordered_map<std::string, float>>;
+
 class GDriveManager : public cocos2d::CCObject
 {
   public:
@@ -20,7 +21,7 @@ class GDriveManager : public cocos2d::CCObject
     void loadMetadata(const int slot);
     void loadData(const int slot);
 
-    void clearFolderCache();
+    void clearIDCache(const bool force = false);
 
     arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByAccountiD, const std::string accountiD = "", const std::string parentID = "");
     arc::Future<std::optional<std::string>> createFolder(const std::string name, const std::string accountiD = "", const std::string parentID = "");

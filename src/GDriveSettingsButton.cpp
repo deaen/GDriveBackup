@@ -112,12 +112,12 @@ class GDriveSettingsButtonNode : public SettingNodeV3
     void onCacheButton(CCObject *)
     {
         auto popDown = createQuickPopup(
-            "Clear folder cache", "Do you want to clear folder cache?\n(this doesn't delete your save data)\n<cg>this may be useful if you're facing file & folder Find issues when saving/loading.</c>",
+            "Clear ID cache", "Do you want to clear ID cache?\n(this doesn't delete your save data)\n<cg>this may be useful if you're facing file & folder Find issues when saving/loading.</c>",
             "no", "yes",
             [this](auto, bool btn2) {
                 if (btn2)
                 {
-                    GDriveManager::getInstance()->clearFolderCache();
+                    GDriveManager::getInstance()->clearIDCache(true);
                 }
             }, false, true);
         popDown->show();

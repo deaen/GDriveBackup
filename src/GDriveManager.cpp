@@ -184,22 +184,10 @@ arc::Future<std::optional<std::string>> GDriveManager::findFolder(const std::str
             Mod::get()->setSavedValue<std::string>(fmt::format("{}-folder-id", (findByAccountID) ? accountID : name), id);
             co_return id;
         }
-        else
-        {
-
-            auto findErrorCount = Mod::get()->getSavedValue<int>("google-find-error-count");
-            Mod::get()->setSavedValue<int>("google-find-error-count", findErrorCount + 1);
-
-            if (findErrorCount > 4)
-            {
-                clearFolderCache();
-                Mod::get()->setSavedValue<int>("google-find-error-count", 0);
-
-                co_await waitForMainThread([this] {
-                    showError("too many folder errors,", " Clearing folder cache...", false);
-                });
-            }
-        }
+        // else
+        // {
+        //     co_await waitForMainThread([this] { clearIDCache(); });
+        // }
     }
     else
         log::warn("Folder id find error: {}", res.string());
@@ -314,6 +302,10 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
 
 arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
 {
+    auto localID = Mod::get()->getSavedValue<std::string>(fmt::format("{}-{}-file-id", GJAccountManager::sharedState()->m_accountID, slot));
+    if (!localID.empty())
+        co_return localID;
+
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = (defparentID.empty()) ? co_await getUserFolderID(autoCreateFolder) : defparentID;
 
@@ -333,8 +325,14 @@ arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot,
         {
             auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
             if (!id.empty())
+            {
+                Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-file-id", GJAccountManager::sharedState()->m_accountID, slot), id);
                 co_return id;
-
+            }
+            // else
+            // {
+            //     co_await waitForMainThread([this] { clearIDCache(); });
+            // }
             if (visibleError)
                 co_await waitForMainThread([this, slot, errStr = error] {
                     showError(errStr.c_str(), "Valid fileID not found.", false);
@@ -1051,8 +1049,40 @@ arc::Future<bool> GDriveManager::deleteFile(const int slot)
 
 arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevisionList(const int slot)
 {
-    std::vector<GDriveManager::fileRevision> revisionVector;
-    co_return revisionVector;
+    std::vector<GDriveManager::fileRevision> arr = {};
+
+    std::string token = co_await getAccessToken();
+    auto fileID = co_await getFileID(slot, false, "", "", true);
+    if (!fileID)
+        co_return arr;
+
+    auto req = web::WebRequest();
+    req.header("Authorization", fmt::format("Bearer {}", token));
+
+    req.param("pageSize", "1000");
+    std::string nextPageToken = {};
+
+    do
+    {
+        req.removeParam("pageToken");
+        if (!nextPageToken.empty())
+            req.param("pageToken", nextPageToken);
+
+        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}/revisions", *fileID));
+
+        if (res.ok())
+        {
+            nextPageToken = res.json().unwrapOrDefault().get<std::string>("nextPageToken").unwrapOrDefault();
+            log::debug("{}", res.string());
+        }
+        else
+        {
+            log::warn("{}", res.string());
+            co_return std::vector<GDriveManager::fileRevision>();
+        }
+    } while (!nextPageToken.empty());
+
+    co_return arr;
 }
 
 void GDriveManager::setCurrentPopup(GDrivePopup *popup)
@@ -1164,15 +1194,33 @@ void GDriveManager::updateQueue(QueueType queueType)
     }
 }
 
-void GDriveManager::clearFolderCache()
+void GDriveManager::clearIDCache(const bool force)
 {
-    auto *saveContainer = &Mod::get()->getSaveContainer();
-    for (auto &[key, value] : *saveContainer)
+    auto findErrorCount = Mod::get()->getSavedValue<int>("google-find-error-count");
+    Mod::get()->setSavedValue<int>("google-find-error-count", findErrorCount + 1);
+
+    if (findErrorCount > 12 || force)
     {
-        if (key.contains("-folder-id"))
+        auto &saveContainer = Mod::get()->getSaveContainer();
+        std::vector<std::string> keysToRemove;
+
+        for (const auto &[key, value] : saveContainer)
         {
-            saveContainer->erase(key);
+            if (key.contains("-folder-id") || key.contains("-file-id"))
+            {
+                keysToRemove.push_back(key);
+            }
         }
+
+        for (const auto &key : keysToRemove)
+        {
+            saveContainer.erase(key);
+        }
+
+        Mod::get()->setSavedValue<int>("google-find-error-count", 0);
+
+        if (!force)
+            showError("too many ID errors,", " Clearing ID cache...", false);
     }
 }
 
