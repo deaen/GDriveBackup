@@ -12,6 +12,7 @@ class GDriveSlotBox : public CCNode
     void setStatusPercentage(const size_t progress);
     void showPercentage(const size_t total);
     void setStatusVisiblity(bool visible);
+    void loadMetadata();
 
     void updateInfo();
     void setEditMode(bool on);

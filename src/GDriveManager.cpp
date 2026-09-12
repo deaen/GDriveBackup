@@ -156,10 +156,6 @@ void GDriveManager::signout(bool openAgain)
 
 arc::Future<std::optional<std::string>> GDriveManager::findFolder(const std::string name, const bool findByAccountID, const std::string accountID, const std::string parentID)
 {
-    auto localID = Mod::get()->getSavedValue<std::string>((fmt::format("{}-folder-id", (findByAccountID) ? accountID : name)));
-    if (!localID.empty())
-        co_return localID;
-
     auto req = web::WebRequest();
     req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
 
@@ -181,13 +177,8 @@ arc::Future<std::optional<std::string>> GDriveManager::findFolder(const std::str
         auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
         if (!id.empty())
         {
-            Mod::get()->setSavedValue<std::string>(fmt::format("{}-folder-id", (findByAccountID) ? accountID : name), id);
             co_return id;
         }
-        // else
-        // {
-        //     co_await waitForMainThread([this] { clearIDCache(); });
-        // }
     }
     else
         log::warn("Folder id find error: {}", res.string());
@@ -246,6 +237,31 @@ arc::Future<bool> GDriveManager::renameFolder(const std::string fileID, const st
     co_return false;
 }
 
+arc::Future<std::optional<std::string>> GDriveManager::getMainFolderID(const bool autoCreate)
+{
+    std::string gdriveFolderName = "GDrive Backup";
+    std::string gdriveAccountID = "gdriveMainFolder";
+
+    // find big gdrive
+    auto gdriveFolderID = co_await findFolder(gdriveFolderName, true, gdriveAccountID);
+
+    if (!gdriveFolderID)
+    {
+        // look for old big gdrive
+        auto oldGDriveFolderID = co_await findFolder(gdriveFolderName, false);
+        if (oldGDriveFolderID)
+        {
+            if (co_await renameFolder(*oldGDriveFolderID, gdriveFolderName, gdriveAccountID))
+                gdriveFolderID = *oldGDriveFolderID;
+        }
+        // else just create
+        else if (autoCreate)
+            gdriveFolderID = co_await createFolder(gdriveFolderName);
+    }
+
+    co_return gdriveFolderID;
+}
+
 arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const bool autoCreate)
 {
     std::string gdriveFolderName = "GDrive Backup";
@@ -255,22 +271,8 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
     if (userFolderName == "'s saves")
         userFolderName = "Unregistered saves";
 
-    // create big gdrive
-    auto gdriveFolderID = co_await findFolder(gdriveFolderName, true, gdriveAccountID);
-
-    if (!gdriveFolderID)
-    {
-        // look for old big gdrive
-        auto oldgdriveFolderID = co_await findFolder(gdriveFolderName, false);
-        if (oldgdriveFolderID)
-        {
-            if (co_await renameFolder(*oldgdriveFolderID, gdriveFolderName, gdriveAccountID))
-                gdriveFolderID = *oldgdriveFolderID;
-        }
-        // else just create
-        else if (autoCreate)
-            gdriveFolderID = co_await createFolder(gdriveFolderName);
-    }
+    // find big gdrive
+    auto gdriveFolderID = co_await getMainFolderID(autoCreate);
 
     if (gdriveFolderID)
     {
@@ -302,10 +304,6 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
 
 arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
 {
-    auto localID = Mod::get()->getSavedValue<std::string>(fmt::format("{}-{}-file-id", GJAccountManager::sharedState()->m_accountID, slot));
-    if (!localID.empty())
-        co_return localID;
-
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = (defparentID.empty()) ? co_await getUserFolderID(autoCreateFolder) : defparentID;
 
@@ -317,26 +315,53 @@ arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot,
     else
     {
         auto req = web::WebRequest();
+        web::WebResponse res;
         req.header("Authorization", fmt::format("Bearer {}", token));
-        req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, *parentID));
 
-        auto res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+        // look for new-style named save
+        req.param("q", fmt::format("name='save-{}' and trashed=false and '{}' in parents", slot, *parentID));
+
+        res = co_await req.get("https://www.googleapis.com/drive/v3/files");
         if (res.ok())
         {
             auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
             if (!id.empty())
             {
-                Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-file-id", GJAccountManager::sharedState()->m_accountID, slot), id);
                 co_return id;
             }
-            // else
-            // {
-            //     co_await waitForMainThread([this] { clearIDCache(); });
-            // }
-            if (visibleError)
-                co_await waitForMainThread([this, slot, errStr = error] {
-                    showError(errStr.c_str(), "Valid fileID not found.", false);
-                });
+            else
+            {
+                // look for old-styled name
+                req.removeParam("q");
+                req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, *parentID));
+                res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+                if (res.ok())
+                {
+                    auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+                    if (!id.empty())
+                    {
+                        // rename to new-styled name if found
+                        req.removeParam("q");
+                        auto body = matjson::Value();
+                        body.set("name", fmt::format("save-{}", slot));
+                        req.bodyJSON(body);
+
+                        res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", id));
+                        if (!res.ok())
+                            log::warn("File id rename error: {}", res.string());
+
+                        co_return id;
+                    }
+                }
+                else
+                {
+                    // continue
+                    if (visibleError)
+                        co_await waitForMainThread([this, slot, errStr = error] {
+                            showError(errStr.c_str(), "Valid fileID not found.", false);
+                        });
+                }
+            }
         }
         else
         {
@@ -471,7 +496,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         if (fileID->empty())
         {
             req.bodyJSON(matjson::makeObject({
-                {"name", fmt::format("save-{}.dat", slot)},
+                {"name", fmt::format("save-{}", slot)},
                 {"parents", std::vector<matjson::Value>({*parentID})},
             }));
             res = co_await req.post("https://www.googleapis.com/upload/drive/v3/files");
@@ -567,15 +592,10 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                 }
             }
         }
-
-        // auto id = res.json().unwrapOrDefault().get<std::string>("id").unwrapOrDefault();
-        // if (!id.empty())
-        //     Mod::get()->setSavedValue(fmt::format("{}-file-id", slot), id);
     }
 
-    Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), std::time(nullptr));
-    Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), data.size());
-
+    m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
+    m_metadataMap[slot]["size"] = std::to_string(data.size());
     co_return true;
 }
 
@@ -603,10 +623,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     auto req = web::WebRequest();
     req.header("Authorization", fmt::format("Bearer {}", token));
 
-    req.param("q", fmt::format("name='{}' and '{}' in parents and trashed=false", fmt::format("save-{}.dat", slot), *parentID));
-
     /* Get file size */
-    req.removeParam("q");
     req.param("fields", "size");
     auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
     if (res.ok())
@@ -622,7 +639,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         }
 
         m_loadTotal = size;
-        Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), size);
+        m_metadataMap[slot]["size"] = std::to_string(size);
     }
     else
         log::warn("{}", res.string());
@@ -854,42 +871,27 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     co_return true;
 }
 
-arc::Future<sizeDataMap> GDriveManager::getSizeInfo()
+arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
 {
     /* Varz */
     std::string token = co_await getAccessToken();
+    auto parentID = co_await getMainFolderID(true);
+    if (token.empty() || !parentID || (*parentID).empty())
+        co_return std::nullopt;
+
     web::WebRequest req;
     web::WebResponse res;
+    req.header("Authorization", fmt::format("Bearer {}", token));
 
-    std::string parentID;
-    sizeDataMap sizeData; // <account id> = <slot name, size>
-
-    if (token.empty())
-        co_return sizeDataMap();
-    req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
-
-    /* Get Parent Folder ID */
-    req.param("q", "name='GDrive Backup' and trashed=false and mimeType = 'application/vnd.google-apps.folder'");
-    res = co_await req.get("https://www.googleapis.com/drive/v3/files");
-    if (res.ok())
-    {
-        auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
-        if (!id.empty())
-            parentID = id;
-        else
-            co_return sizeDataMap();
-    }
-    else
-        co_return sizeDataMap();
-
+    sizedata_map sizeDataMap;
     /* Get Data */
     std::string nextPageToken;
     do
     {
         req.removeParam("q");
         req.removeParam("pageToken");
-        req.param("fields", "files/id,files/name,files/size");
-        req.param("q", fmt::format("'{}' in parents and trashed=false and mimeType = 'application/vnd.google-apps.folder'", parentID));
+        req.param("fields", "files/id,files/name,files/size, files/appProperties");
+        req.param("q", fmt::format("'{}' in parents and trashed=false and mimeType = 'application/vnd.google-apps.folder'", *parentID));
         req.param("orderBy", "name_natural");
         if (!nextPageToken.empty())
             req.param("pageToken", nextPageToken);
@@ -902,11 +904,12 @@ arc::Future<sizeDataMap> GDriveManager::getSizeInfo()
             for (auto &value : folders)
             {
                 auto id = value.get<std::string>("id").unwrapOrDefault();
-                auto name = value.get<std::string>("name").unwrapOrDefault();
+                auto name = utils::string::trim(value.get<std::string>("name").unwrapOrDefault(), "'s saves");
+                auto accountID = value.get<matjson::Value>("appProperties").unwrapOrDefault().get<std::string>("accountID").unwrapOrDefault();
                 if (id.empty())
                     continue;
 
-                /* Get File Size! I like copy Paste :) I am Evil This is Evil I am So Sorry*/
+                // Get File Size! I like copy Paste :) I am Evil This is Evil I am So Sorry
                 {
                     std::string nextPageToken;
                     do
@@ -928,25 +931,111 @@ arc::Future<sizeDataMap> GDriveManager::getSizeInfo()
                                 auto slotSize = value.get<std::string>("size").unwrapOrDefault();
                                 auto slotName = value.get<std::string>("name").unwrapOrDefault();
 
-                                sizeData[name][fmt::format("Slot {}", utils::string::filter(slotName, "0123456789"))] = utils::numFromString<float>(slotSize).unwrapOrDefault() / (1024.f * 1024.f);
+                                sizeDataMap[name][fmt::format("Slot {}", utils::string::filter(slotName, "0123456789"))] = slotSize;
+                                sizeDataMap[name]["account id"] = accountID;
                             }
                         }
                         else
-                            co_return sizeDataMap();
+                            co_return std::nullopt;
 
                     } while (!nextPageToken.empty());
                 }
             }
         }
         else
-            co_return sizeDataMap();
+            co_return std::nullopt;
 
     } while (!nextPageToken.empty());
 
-    if (sizeData.empty())
-        co_return sizeDataMap();
+    if (sizeDataMap.empty())
+        co_return std::nullopt;
 
-    co_return sizeData;
+    co_return sizeDataMap;
+}
+
+arc::Future<bool> GDriveManager::getMetadata2()
+{
+    m_gettingMetadata = true;
+
+    // get token & parentID
+    std::string token = co_await getAccessToken();
+    auto parentID = co_await getUserFolderID(true);
+    std::string nextPageToken;
+    if (!parentID)
+    {
+        log::warn("Couldn't find parentID while getting metadata");
+        m_gettingMetadata = false;
+        co_return false;
+    }
+    // setup req
+    auto req = web::WebRequest();
+    web::WebResponse res;
+    req.header("Authorization", fmt::format("Bearer {}", token));
+    req.param("fields", "files/name, files/size, files/modifiedTime, files/description");
+    req.param("q", fmt::format("'{}' in parents and trashed = false", *parentID));
+
+    // do-while loop to go through pages of the res
+    do
+    {
+        req.removeParam("pageToken");
+        if (!nextPageToken.empty())
+            req.param("pageToken", nextPageToken);
+
+        res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+        if (res.ok())
+        {
+            // loop through file objects & save their data to userdata
+            nextPageToken = res.json().unwrapOrDefault().get<std::string>("nextPageToken").unwrapOrDefault();
+            auto folders = res.json().unwrapOrDefault()["files"];
+            for (auto &value : folders)
+            {
+                auto slot = utils::numFromString<int>(utils::string::filter(value.get<std::string>("name").unwrapOrDefault(), "0123456789")).unwrapOr(-1);
+
+                if (slot < 1)
+                {
+                    log::debug("Slot name is invalid [{}], skipping it...", slot);
+                    continue;
+                }
+                auto description = value.get<std::string>("description").unwrapOrDefault();
+                auto modifiedTime = value.get<std::string>("modifiedTime").unwrapOrDefault();
+                auto size = value.get<std::string>("size").unwrapOrDefault();
+
+                if (modifiedTime.empty() && (size.empty() || size == "0"))
+                {
+                    log::debug("Slot {} is empty, skipping it...", slot);
+                    continue;
+                }
+
+                // parse modifiedTime
+                std::tm tm;
+                std::istringstream ss(modifiedTime);
+                ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
+
+                time_t localTime;
+
+                // lol
+#ifdef GEODE_IS_WINDOWS
+                localTime = _mkgmtime(&tm);
+#else
+                localTime = timegm(&tm);
+#endif
+
+                m_metadataMap[slot]["timestamp"] = std::to_string(localTime);
+                m_metadataMap[slot]["size"] = size;
+                m_metadataMap[slot]["description"] = description;
+            }
+        }
+        else
+        {
+            log::warn("Couldn't get metadata: {}", res.string());
+            m_gettingMetadata = false;
+            co_return false;
+        }
+    } while (!nextPageToken.empty());
+
+    m_gettingMetadata = false;
+
+    co_return true;
 }
 
 arc::Future<bool> GDriveManager::getMetadata(const int slot)
@@ -1012,7 +1101,7 @@ arc::Future<bool> GDriveManager::setDescription(std::string description, const i
 
     auto res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
     if (res.ok())
-        Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, slot), description.data());
+        m_metadataMap[slot]["description"] = description.data();
     else
     {
         co_await waitForMainThread([this, slot, &res] {
@@ -1176,7 +1265,7 @@ arc::Future<std::string> GDriveManager::getEmail()
     {
         log::warn("{}", res.string());
         auto error = res.json().unwrapOrDefault().get<matjson::Value>("error").unwrapOrDefault().get<std::string>("status").unwrapOr(fmt::format("error code: {}", res.code()));
-        co_await waitForMainThread([this, &error] { showError("Email", error); });
+        co_await waitForMainThread([this, error] { showError("Email", error); });
     }
 
     co_return Mod::get()->getSavedValue<std::string>("email");
@@ -1191,36 +1280,6 @@ void GDriveManager::updateQueue(QueueType queueType)
             saveData(queue->begin()->first);
         else if (queueType == Metadata)
             loadMetadata(queue->begin()->first);
-    }
-}
-
-void GDriveManager::clearIDCache(const bool force)
-{
-    auto findErrorCount = Mod::get()->getSavedValue<int>("google-find-error-count");
-    Mod::get()->setSavedValue<int>("google-find-error-count", findErrorCount + 1);
-
-    if (findErrorCount > 12 || force)
-    {
-        auto &saveContainer = Mod::get()->getSaveContainer();
-        std::vector<std::string> keysToRemove;
-
-        for (const auto &[key, value] : saveContainer)
-        {
-            if (key.contains("-folder-id") || key.contains("-file-id"))
-            {
-                keysToRemove.push_back(key);
-            }
-        }
-
-        for (const auto &key : keysToRemove)
-        {
-            saveContainer.erase(key);
-        }
-
-        Mod::get()->setSavedValue<int>("google-find-error-count", 0);
-
-        if (!force)
-            showError("too many ID errors,", " Clearing ID cache...", false);
     }
 }
 
@@ -1302,3 +1361,21 @@ size_t GDriveManager::getLoadTotal()
 {
     return m_loadTotal;
 };
+void GDriveManager::setgettingMetadataStatus(bool status)
+{
+    m_gettingMetadata = status;
+}
+bool GDriveManager::getMetadataStatus()
+{
+    return m_gettingMetadata;
+}
+metadata_map *GDriveManager::getMetadataMap()
+{
+    return &m_metadataMap;
+}
+void GDriveManager::clearMetadata()
+{
+    auto map = getMetadataMap();
+    if (map)
+        map->clear();
+}

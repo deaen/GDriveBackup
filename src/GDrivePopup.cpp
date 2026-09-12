@@ -88,6 +88,17 @@ bool GDrivePopup::init()
     m_pageButtonsRow->setAnchorPoint({0.5f, 0.5f});
     m_pageButtonsRow->setID("page-button-row"_spr);
 
+    async::spawn(GDriveManager::getInstance()->getMetadata2(), [this](bool gotData) {
+        for (const auto &box : m_slotBoxes)
+        {
+            if (box)
+                box->loadMetadata();
+        }
+
+        if (!gotData)
+            GDriveManager::getInstance()->showError("Couldn't get metadata,", "Please try again later", false);
+    });
+
     showSlotPage(1);
 
     for (int i = 1; i <= m_maxSlotPage; ++i)
@@ -198,16 +209,6 @@ bool GDrivePopup::init()
 
     bottomRightMenu->updateLayout();
 
-    // if (Mod::get()->getSavedValue<bool>("show-title-hint", true) && Mod::get()->getSavedValue<int>("hide-hint") <= 15)
-    // {
-    //     auto titleHint = CCSprite::create("titleHint.pn"_spr);
-    //     titleHint->setAnchorPoint({0, 0.5f});
-    //     titleHint->setScale(0.9f);
-    //     titleHint->setID("title-hint"_spr);
-    //     m_mainLayer->addChildAtPosition(titleHint, Anchor::Left, {7.5f, (m_slotRow->getScaledContentHeight() / 2.f) - 9.f});
-
-    //     Mod::get()->setSavedValue<int>("hide-hint", Mod::get()->getSavedValue<int>("hide-hint") + 1);
-    // }
     return true;
 }
 void GDrivePopup::onExitTransitionDidStart()
@@ -216,6 +217,8 @@ void GDrivePopup::onExitTransitionDidStart()
 
     if (GDriveManager::getInstance()->getCurrentPopup() == this)
         GDriveManager::getInstance()->setCurrentPopup(nullptr);
+
+    GDriveManager::getInstance()->clearMetadata();
 }
 
 void GDrivePopup::onToggleAccountVisibility(CCObject *sender)
@@ -244,9 +247,12 @@ void GDrivePopup::onSizeInfo(CCObject *sender)
     GDriveLoadLayer *layer = GDriveLoadLayer::create();
     layer->setMessage("Getting size information...");
     layer->show();
-    async::spawn(GDriveManager::getInstance()->getSizeInfo(), [layer](sizeDataMap sizeData) {
+    async::spawn(GDriveManager::getInstance()->getSizeInfo(), [layer](std::optional<sizedata_map> sizeDataMap) {
         layer->removeFromParent();
-        GDriveSizeInfoPopup::create(sizeData);
+        if (sizeDataMap)
+            GDriveSizeInfoPopup::create(*sizeDataMap);
+        else
+            FLAlertLayer::create("No Data", "Couldn't find any save files!\nMake sure to save atleast once before looking for size info!", "ok")->show();
     });
 }
 
@@ -351,6 +357,8 @@ void GDrivePopup::showSlotPage(int pageNumber)
         {
             m_slotBoxes[vecdex] = GDriveSlotBox::create(i, m_editMode);
             m_slotRow->addChild(m_slotBoxes[vecdex]);
+            // if (!GDriveManager::getInstance()->getMetadataStatus())
+            //     m_slotBoxes[vecdex]->loadMetadata();
         }
         else
             m_slotBoxes[vecdex]->setVisible(true);
@@ -364,7 +372,8 @@ void GDrivePopup::onToggleEditMode(CCObject *sender)
     m_editMode = !m_editMode;
     for (auto box : m_slotBoxes)
     {
-        if (box){
+        if (box)
+        {
             box->setEditMode(m_editMode);
             box->setShouldEditMode(m_editMode);
         }

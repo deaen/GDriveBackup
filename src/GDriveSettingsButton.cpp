@@ -46,8 +46,8 @@ class GDriveSettingsButtonNode : public SettingNodeV3
     ButtonSprite *m_signinButtonSprite;
     CCMenuItemSpriteExtra *m_signinButton;
 
-    ButtonSprite *m_cacheButtonSprite;
-    CCMenuItemSpriteExtra *m_cacheButton;
+    // ButtonSprite *m_cacheButtonSprite;
+    // CCMenuItemSpriteExtra *m_cacheButton;
 
     bool init(std::shared_ptr<GDriveSettingsButton> setting, float width)
     {
@@ -68,16 +68,16 @@ class GDriveSettingsButtonNode : public SettingNodeV3
             m_signinButtonSprite->setColor(ccGRAY);
         }
 
-        m_cacheButtonSprite = ButtonSprite::create("Clear Cache", "goldFont.fnt", "GJ_button_01.png");
-        m_cacheButtonSprite->setScale(.7f);
-        m_cacheButton = CCMenuItemSpriteExtra::create(m_cacheButtonSprite, this, menu_selector(GDriveSettingsButtonNode::onCacheButton));
+        // m_cacheButtonSprite = ButtonSprite::create("Clear Cache", "goldFont.fnt", "GJ_button_01.png");
+        // m_cacheButtonSprite->setScale(.7f);
+        // m_cacheButton = CCMenuItemSpriteExtra::create(m_cacheButtonSprite, this, menu_selector(GDriveSettingsButtonNode::onCacheButton));
 
         this->getButtonMenu()->setLayout(RowLayout::create());
         this->getButtonMenu()->setAnchorPoint({0.5f, 0.5f});
         this->getButtonMenu()->setContentSize(getBG()->getContentSize());
         this->getButtonMenu()->setPosition(getBG()->getPosition());
 
-        this->getButtonMenu()->addChild(m_cacheButton);
+        // this->getButtonMenu()->addChild(m_cacheButton);
         this->getButtonMenu()->addChild(m_signinButton);
         
         this->getButtonMenu()->updateLayout();
@@ -109,19 +109,19 @@ class GDriveSettingsButtonNode : public SettingNodeV3
         popDown->show();
     }
 
-    void onCacheButton(CCObject *)
-    {
-        auto popDown = createQuickPopup(
-            "Clear ID cache", "Do you want to clear ID cache?\n(this doesn't delete your save data)\n<cg>this may be useful if you're facing file & folder Find issues when saving/loading.</c>",
-            "no", "yes",
-            [this](auto, bool btn2) {
-                if (btn2)
-                {
-                    GDriveManager::getInstance()->clearIDCache(true);
-                }
-            }, false, true);
-        popDown->show();
-    }
+    // void onCacheButton(CCObject *)
+    // {
+    //     auto popDown = createQuickPopup(
+    //         "Clear ID cache", "Do you want to clear ID cache?\n(this doesn't delete your save data)\n<cg>this may be useful if you're facing file & folder Find issues when saving/loading.</c>",
+    //         "no", "yes",
+    //         [this](auto, bool btn2) {
+    //             if (btn2)
+    //             {
+    //                 GDriveManager::getInstance()->clearIDCache(true);
+    //             }
+    //         }, false, true);
+    //     popDown->show();
+    // }
 
     void onCommit() override
     {

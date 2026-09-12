@@ -296,10 +296,10 @@ void GDriveSlotBox::updateStatus()
             setEditMode(true);
         }
 
-        GDriveManager::getInstance()->addToQueue(GDriveManager::Metadata, this);
+        // GDriveManager::getInstance()->addToQueue(GDriveManager::Metadata, this);
 
-        auto m_savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, getSlot()), -1);
-        if (m_savedTimestamp == -1)
+        auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
+        if (metadataMap && !metadataMap->contains(getSlot()) && GDriveManager::getInstance()->getMetadataStatus())
         {
             setStatusVisiblity(true);
             setStatusMessage("Loading...");
@@ -307,10 +307,13 @@ void GDriveSlotBox::updateStatus()
         else
             updateInfo();
 
-        float duration = 1.0f;
-        auto action = CCRepeatForever::create(CCSequence::createWithTwoActions(CCFadeTo::create(duration, 55), CCFadeTo::create(duration, 255)));
-        action->setTag(1);
-        m_slotTitle->getInputNode()->getTextLabel()->runAction(action);
+        if (GDriveManager::getInstance()->getMetadataStatus())
+        {
+            float duration = 1.0f;
+            auto action = CCRepeatForever::create(CCSequence::createWithTwoActions(CCFadeTo::create(duration, 55), CCFadeTo::create(duration, 255)));
+            action->setTag(1);
+            m_slotTitle->getInputNode()->getTextLabel()->runAction(action);
+        }
     }
 }
 
@@ -471,9 +474,13 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
 
 void GDriveSlotBox::updateInfo()
 {
-    m_savedTimestamp = Mod::get()->getSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, getSlot()));
-    m_savedSize = Mod::get()->getSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, getSlot()));
-    m_savedDescription = Mod::get()->getSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, getSlot()));
+    auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
+    if (metadataMap && metadataMap->contains(getSlot()))
+    {
+        m_savedTimestamp = utils::numFromString<time_t>(metadataMap->at(getSlot())["timestamp"]).unwrapOrDefault();
+        m_savedSize = utils::numFromString<size_t>(metadataMap->at(getSlot())["size"]).unwrapOrDefault();
+        m_savedDescription = metadataMap->at(getSlot())["description"];
+    }
 
     if (m_savedSize == 0)
     {
@@ -592,3 +599,19 @@ float GDriveSlotBox::getCalculatedScale(float childWidth, float childScale)
 {
     return (childWidth > this->getContentWidth()) ? (this->getContentWidth()) / childWidth : childScale;
 }
+
+void GDriveSlotBox::loadMetadata()
+{
+    if (GDriveManager::getInstance()->checkStatus(GDriveManager::QueueType::Save, this) == GDriveManager::Status::Idle)
+    {
+        setStatusVisiblity(false);
+        setMetadataStatus(false);
+        updateInfo();
+
+        if (getShouldEditMode())
+        {
+            setShouldEditMode(false);
+            setEditMode(true);
+        }
+    }
+};

@@ -1,9 +1,9 @@
 #include "GDriveSizeInfoPopup.hpp"
 
-GDriveSizeInfoPopup *GDriveSizeInfoPopup::create(const sizeDataMap &sizeData)
+GDriveSizeInfoPopup *GDriveSizeInfoPopup::create(const sizedata_map &sizeDataMap)
 {
     auto ret = new GDriveSizeInfoPopup();
-    if (ret->init(sizeData))
+    if (ret->init(sizeDataMap))
     {
         ret->autorelease();
         ret->show();
@@ -14,52 +14,57 @@ GDriveSizeInfoPopup *GDriveSizeInfoPopup::create(const sizeDataMap &sizeData)
     return nullptr;
 }
 
-bool GDriveSizeInfoPopup::init(const sizeDataMap &sizeData)
+bool GDriveSizeInfoPopup::init(const sizedata_map &sizeDataMap)
 {
-    if(sizeData.empty()){
-        FLAlertLayer::create("No Data", "Couldn't find any save files!\nMake sure to save atleast once before looking for size info!", "ok")->show();
-        return false;
-    }
 
     if (!Popup::init(tableWidth + 20.f, tableHeight + 50.f))
         return false;
-    
+
     this->setID("gdrive-size-info-popup"_spr);
     this->setTitle("size information breakdown");
 
     ScrollLayer *tableContainer = ScrollLayer::create({tableWidth, tableHeight}, true, true);
     tableContainer->setID("table-container"_spr);
 
-    tableContainer->m_contentLayer->addChild(createTableRow("Account ID", "Slot", "Size", true, true, true));
+    tableContainer->m_contentLayer->addChild(createTableRow("Account", "", "Slot", "Size", true, true, true));
 
     bool darkColor = false;
     float grandTotal = .0f;
 
-    for (auto &key : sizeData)
+    for (auto &key : sizeDataMap)
     {
         bool doneDidUser = false;
         float userTotal = .0f;
+
+        std::string accountID;
+        if (key.second.contains("account id"))
+            accountID = key.second.at("account id");
+
         for (auto &obj : key.second)
         {
-            std::string_view id;
+            if (obj.first == "account id")
+                continue;
+
+            std::string_view name;
             if (doneDidUser)
-                id = "";
+                name = "";
             else
             {
-                id = key.first;
+                name = key.first;
                 doneDidUser = true;
             }
 
-            tableContainer->m_contentLayer->addChild(createTableRow(id.data(), obj.first, fmt::format("{:.2f}MB", obj.second), darkColor));
-            grandTotal += obj.second;
-            userTotal += obj.second;
+            auto size = utils::numFromString<float>(obj.second).unwrapOrDefault() / (1024.f * 1024.f);
+            tableContainer->m_contentLayer->addChild(createTableRow(name.data(), accountID, obj.first, fmt::format("{:.2f} MB", size), darkColor));
+            grandTotal += size;
+            userTotal += size;
         }
 
-        tableContainer->m_contentLayer->addChild(createTableRow("Total", "", fmt::format("{:.2f}MB", userTotal), darkColor, true, true));
+        tableContainer->m_contentLayer->addChild(createTableRow("Total", "","", fmt::format("{:.2f} MB", userTotal), darkColor, true, true));
         darkColor = !darkColor;
     }
 
-    tableContainer->m_contentLayer->addChild(createTableRow("GRAND TOTAL", "", fmt::format("{:.3f}MB", grandTotal), darkColor, true, true));
+    tableContainer->m_contentLayer->addChild(createTableRow("GRAND TOTAL", "","", fmt::format("{:.3f} MB", grandTotal), darkColor, true, true));
 
     tableContainer->m_contentLayer->setLayout(ScrollLayer::createDefaultListLayout(0.f));
     tableContainer->scrollToTop();
@@ -68,7 +73,7 @@ bool GDriveSizeInfoPopup::init(const sizeDataMap &sizeData)
     return true;
 }
 
-cocos2d::CCLayerColor *GDriveSizeInfoPopup::createTableRow(std::string accountID, std::string_view slot, std::string_view size, bool darkColor, bool goldFont, bool accountLabel)
+cocos2d::CCLayerColor *GDriveSizeInfoPopup::createTableRow(std::string buttonLabel, std::string accountID, std::string_view slot, std::string_view size, bool darkColor, bool goldFont, bool accountLabel)
 {
     auto tableRow = CCLayerColor::create({123, 67, 40});
     tableRow->setID("table-row"_spr);
@@ -96,27 +101,27 @@ cocos2d::CCLayerColor *GDriveSizeInfoPopup::createTableRow(std::string accountID
     sizeColumn->setID("size-column"_spr);
     tableRow->addChild(sizeColumn);
 
-    if (!accountID.empty())
+    if (!buttonLabel.empty())
     {
         if (accountLabel || accountID == "0")
         {
             if (accountID == "0")
-                accountID = "Unregistered";
+                buttonLabel = "Unregistered";
 
-            auto label = CCLabelBMFont::create(accountID.data(), "goldFont.fnt");
+            auto label = CCLabelBMFont::create(buttonLabel.c_str(), "goldFont.fnt");
             label->setID("account-label"_spr);
-            label->setScale(calculatePercentageScale(label->getContentSize(), accountColumn->getContentSize(), (accountID != "GRAND TOTAL") ? labelPercentage : 1.f));
+            label->setScale(calculatePercentageScale(label->getContentSize(), accountColumn->getContentSize(), (buttonLabel != "GRAND TOTAL") ? labelPercentage : 1.f));
             label->setAnchorPoint({0, 0.4f});
 
             accountColumn->addChildAtPosition(label, Anchor::Left);
         }
         else
         {
-            auto buttonBtnSpr = ButtonSprite::create(accountID.data(), "goldFont.fnt", "GJ_button_01.png");
+            auto buttonBtnSpr = ButtonSprite::create(buttonLabel.c_str(), "goldFont.fnt", "GJ_button_01.png");
             auto label = CCMenuItemExt::createSpriteExtra(buttonBtnSpr, [accountID](CCMenuItemSpriteExtra *) {
                 auto res = numFromString<int>(accountID);
                 if (res.isErr())
-                  FLAlertLayer::create("Profile error", "<cr>Couldn't find this account</c>\n...You shouldn't be seeing this, actually.", "ok?")->show();
+                    FLAlertLayer::create("Profile error", "<cr>Couldn't find this account</c>\n...You shouldn't be seeing this, actually.", "ok?")->show();
                 else
                     ProfilePage::create(res.unwrap(), false)->show();
             });
