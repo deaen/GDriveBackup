@@ -5,12 +5,20 @@ using namespace geode::prelude;
 class GDriveSizeInfoPopup : public Popup
 {
   public:
-    static GDriveSizeInfoPopup *create(const sizedata_map &sizeDataMap);
+    static GDriveSizeInfoPopup *create(sizedata_map &sizeDataMap);
 
   private:
-    bool init(const sizedata_map &sizeDataMap);
-    CCLayerColor *createTableRow(std::string buttonLabel, std::string accountID, std::string_view slot, std::string_view size, bool darkColor, bool goldFont = false, bool accountLabel = false);
-    float calculatePercentageScale(const CCSize dividend, const CCSize divisor, const float percentage);
+    bool init(sizedata_map &sizeDataMap);
+
     static constexpr float tableWidth = 350.f;
-    static constexpr float tableHeight = 220.f;
+    static constexpr float tableHeight = 195.f;
+    enum rowColor
+    {
+        TRANSPARENT,
+        LIGHT,
+        DARK,
+        DARKER,
+    };
+
+    CCNode *createTableRow(const std::string_view firstColumnLabel, const std::string_view secondColumnLabel, const std::string_view thirdColumnLabel, const rowColor color, const bool firstColumnGreen = false, const bool firstColumnGolden = false, const bool secondColumnGolden = false, const bool thirdColumnGolden = false, const bool profileButton = false, const std::string accountID = "", const GLfloat rowHeight = 20.f, const bool noGaps = false);
 };

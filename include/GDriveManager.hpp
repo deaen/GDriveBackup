@@ -4,8 +4,8 @@ using namespace geode::prelude;
 #include "GDrivePopup.hpp"
 #include "GDriveSigninPopup.hpp"
 
-using folderdata_map = std::unordered_map<std::string, std::string>; // var = value
-using sizedata_map = std::unordered_map<std::string, folderdata_map>; // username = [var, value]
+using folderdata_map = std::map<std::string, std::string>; // var = value
+using sizedata_map = std::map<std::string, folderdata_map>; // username = [var, value]
 using slotdata_map = std::unordered_map<std::string, std::string>; // var = value
 using metadata_map = std::unordered_map<int, slotdata_map>;        // slot = [var, value]
 

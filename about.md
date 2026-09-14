@@ -14,5 +14,6 @@
 Please report any issues on GitHub, or just contact me on one of the socials on my website. <cl>(discord/twitter preferred)</c>
 
 ---
-## <cd>Credits:</c>
-Thanks to camila314 for the [Geode URI API](<mod:camila314.geode-uri>)!
+## <cd>Special thanks:</c>
+- camila314 for the [Geode URI API](<mod:camila314.geode-uri>)!
+- & to [CoraBitz](<user:9549674>) for designing the size breakdown popup!!!!

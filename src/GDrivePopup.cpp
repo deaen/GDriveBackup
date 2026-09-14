@@ -37,13 +37,6 @@ bool GDrivePopup::init()
     titleSprite->setID("title-sprite"_spr);
     m_mainLayer->addChildAtPosition(titleSprite, Anchor::Top, {0, -33.f});
 
-    /* size info button */
-    auto sizeInfoIconSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
-    // sizeInfoIconSpr->setScale(0.6f);
-    auto sizeInfoButton = CCMenuItemSpriteExtra::create(sizeInfoIconSpr, this, menu_selector(GDrivePopup::onSizeInfo));
-    sizeInfoButton->setID("size-info-button"_spr);
-    m_buttonMenu->addChildAtPosition(sizeInfoButton, Anchor::TopRight, {-3.f, -3.f});
-
     /* Popup Column */
     auto popupColumn = CCMenu::create();
     popupColumn->setLayout(
@@ -201,6 +194,13 @@ bool GDrivePopup::init()
     auto editButton = CCMenuItemSpriteExtra::create(editButtonSpr, this, menu_selector(GDrivePopup::onToggleEditMode));
     editButton->setID("edit-button"_spr);
     bottomRightMenu->addChild(editButton);
+
+    /* Edit Button */
+    auto sizeButtonSpr =  CircleButtonSprite::createWithSprite("size.png"_spr, 0.77f, CircleBaseColor::Green, CircleBaseSize::MediumAlt);
+    editButtonSpr->setScale(1.05f);
+    auto sizeButton = CCMenuItemSpriteExtra::create(sizeButtonSpr, this, menu_selector(GDrivePopup::onSizeInfo));
+    sizeButton->setID("size-button"_spr);
+    bottomRightMenu->addChild(sizeButton);
 
     /* Mod Settings Button */
     auto modSettingsButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_optionsBtn_001.png"), this, menu_selector(GDrivePopup::onSettings));

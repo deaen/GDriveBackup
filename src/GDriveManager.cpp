@@ -573,7 +573,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
             {
                 if (auto range = res.getAllHeadersNamed("range"))
                 {
-                    size_t r = geode::utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back()).unwrapOrDefault();
+                    size_t r = utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back()).unwrapOrDefault();
                     if (r == 0)
                     {
                         co_await waitForMainThread([&res, slot, this] {
@@ -677,7 +677,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         {
             if (auto range = res.getAllHeadersNamed("content-range"))
             {
-                size_t r = geode::utils::numFromString<size_t>(utils::string::split(utils::string::split(range->at(0), "-").back(), "/").front()).unwrapOrDefault();
+                size_t r = utils::numFromString<size_t>(utils::string::split(utils::string::split(range->at(0), "-").back(), "/").front()).unwrapOrDefault();
                 if (r == 0)
                 {
                     co_await waitForMainThread([&res, slot, this] {
@@ -892,7 +892,7 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
         req.removeParam("pageToken");
         req.param("fields", "files/id,files/name,files/size, files/appProperties");
         req.param("q", fmt::format("'{}' in parents and trashed=false and mimeType = 'application/vnd.google-apps.folder'", *parentID));
-        req.param("orderBy", "name_natural");
+        req.param("orderBy", "name_natural desc");
         if (!nextPageToken.empty())
             req.param("pageToken", nextPageToken);
 
@@ -931,7 +931,7 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
                                 auto slotSize = value.get<std::string>("size").unwrapOrDefault();
                                 auto slotName = value.get<std::string>("name").unwrapOrDefault();
 
-                                sizeDataMap[name][fmt::format("Slot {}", utils::string::filter(slotName, "0123456789"))] = slotSize;
+                                sizeDataMap[utils::string::toLower(name)][fmt::format("Slot {}", utils::string::filter(slotName, "0123456789"))] = slotSize;
                                 sizeDataMap[name]["account id"] = accountID;
                             }
                         }
