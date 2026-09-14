@@ -14,7 +14,7 @@ class GDriveSizeInfoPopup : public Popup
     static constexpr float tableHeight = 195.f;
     enum rowColor
     {
-        TRANSPARENT,
+        INVISIBLE,
         LIGHT,
         DARK,
         DARKER,

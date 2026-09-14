@@ -70,10 +70,10 @@ bool GDriveSizeInfoPopup::init(sizedata_map &sizeDataMap)
             userTotal += size;
 
             if (slotCount == (slotMap.size() - 1)  && slotMap.size() > 2)
-                tableContainer->m_contentLayer->addChild(createTableRow(fmt::format("Total: {:.2f} MB", userTotal), slotName, fmt::format("{:.2f} MB", size), (darkColor) ? rowColor::DARK : rowColor::TRANSPARENT, true));
+                tableContainer->m_contentLayer->addChild(createTableRow(fmt::format("Total: {:.2f} MB", userTotal), slotName, fmt::format("{:.2f} MB", size), (darkColor) ? rowColor::DARK : rowColor::INVISIBLE, true));
 
             else
-                tableContainer->m_contentLayer->addChild(createTableRow(name.data(), slotName, fmt::format("{:.2f} MB", size), (darkColor) ? rowColor::DARK : rowColor::TRANSPARENT, false, true, false, false, shouldProfileButton, sizeDataMap[userName]["account id"]));
+                tableContainer->m_contentLayer->addChild(createTableRow(name.data(), slotName, fmt::format("{:.2f} MB", size), (darkColor) ? rowColor::DARK : rowColor::INVISIBLE, false, true, false, false, shouldProfileButton, sizeDataMap[userName]["account id"]));
 
             if (shouldProfileButton)
                 shouldProfileButton = false;
@@ -107,7 +107,7 @@ bool GDriveSizeInfoPopup::init(sizedata_map &sizeDataMap)
     topBorder->setInsetLeft(topBorder->getContentWidth() / 2);
     topBorder->setContentWidth(tableWidth + 11.f);
     topBorder->setID("top-border"_spr);
-    this->m_mainLayer->addChildAtPosition(topBorder, Anchor::Center, {0, -tableOffset.y + 5.f});
+    this->m_mainLayer->addChildAtPosition(topBorder, Anchor::Center, {0, -tableOffset.y + 6.f});
 
     auto bottomBorder = NineSlice::createWithSpriteFrameName("GJ_commentTop_001.png");
     bottomBorder->setInsetLeft(bottomBorder->getContentWidth() / 2);
@@ -140,7 +140,7 @@ cocos2d::CCNode *GDriveSizeInfoPopup::createTableRow(const std::string_view firs
     ccColor4B colorCode;
     switch (color)
     {
-    case TRANSPARENT:
+    case INVISIBLE:
         colorCode = {0, 0, 0, 0};
         break;
     case LIGHT:
