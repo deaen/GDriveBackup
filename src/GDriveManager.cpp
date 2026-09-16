@@ -871,7 +871,11 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
             for (auto &value : folders)
             {
                 auto id = value.get<std::string>("id").unwrapOrDefault();
-                auto name = utils::string::trim(value.get<std::string>("name").unwrapOrDefault(), "'s saves");
+                auto name = value.get<std::string>("name").unwrapOrDefault();
+                if (utils::string::endsWith(name, "saves"))
+                    name.erase(name.length() - 5);
+                if (utils::string::endsWith(name, "'s "))
+                    name.erase(name.length() - 3);
                 auto accountID = value.get<matjson::Value>("appProperties").unwrapOrDefault().get<std::string>("accountID").unwrapOrDefault();
                 if (id.empty())
                     continue;
