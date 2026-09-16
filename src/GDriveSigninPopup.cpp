@@ -145,8 +145,8 @@ void GDriveSigninPopup::showSignin()
 
 void GDriveSigninPopup::finishUp()
 {
-    GDrivePopup::create();
     this->onClose(this);
+    GDrivePopup::create();
 }
 
 #ifdef GEODE_IS_DESKTOP

@@ -1096,7 +1096,7 @@ arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevision
 arc::Future<std::string> GDriveManager::getRefreshToken()
 {
     auto refreshToken = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("refresh_token"));
-    if (refreshToken == "")
+    if (refreshToken.empty())
     {
         co_await waitForMainThread([this] {
             signout(false);
@@ -1107,7 +1107,7 @@ arc::Future<std::string> GDriveManager::getRefreshToken()
     co_return refreshToken;
 }
 
-arc::Future<std::string> GDriveManager::getAccessToken()
+arc::Future<std::string> GDriveManager:: getAccessToken()
 {
     auto token = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
     if ((!token.empty()) && Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr))
