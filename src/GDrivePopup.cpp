@@ -204,8 +204,6 @@ void GDrivePopup::onExitTransitionDidStart()
 
     if (GDriveManager::getInstance()->getCurrentPopup() == this)
         GDriveManager::getInstance()->setCurrentPopup(nullptr);
-
-    GDriveManager::getInstance()->clearMetadata();
 }
 
 void GDrivePopup::onToggleAccountVisibility(CCObject *sender)

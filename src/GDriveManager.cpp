@@ -1,8 +1,8 @@
 #include "GDriveManager.hpp"
-#include <ctime>
+#include "GDriveEncrypt.hpp"
 #include <Geode/binding/LocalLevelManager.hpp>
 #include <Geode/utils/base64.hpp>
-#include "GDriveEncrypt.hpp"
+#include <ctime>
 
 #ifdef GEODE_IS_ANDROID
 #include <Geode/cocos/platform/android/jni/JniHelper.h>
@@ -565,7 +565,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
 
     m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
     m_metadataMap[slot]["size"] = std::to_string(data.size());
-    
+
     co_return true;
 }
 
@@ -580,7 +580,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
     m_loadTotal = 0;
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = co_await getUserFolderID(true);
-    
+
     if (!parentID)
     {
         co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
@@ -1107,7 +1107,7 @@ arc::Future<std::string> GDriveManager::getRefreshToken()
     co_return refreshToken;
 }
 
-arc::Future<std::string> GDriveManager:: getAccessToken()
+arc::Future<std::string> GDriveManager::getAccessToken()
 {
     auto token = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
     if ((!token.empty()) && Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr))
@@ -1176,7 +1176,7 @@ void GDriveManager::updateQueue()
     if (!m_saveQueue.empty() && m_saveQueue.begin()->first)
     {
 
-            saveData(m_saveQueue.begin()->first);
+        saveData(m_saveQueue.begin()->first);
     }
 }
 
@@ -1191,7 +1191,7 @@ void GDriveManager::removeFromQueue(const int slot)
 {
     if (!m_saveQueue.empty() && m_saveQueue.begin()->first == slot)
     {
-            m_saveListener.cancel();
+        m_saveListener.cancel();
     }
 
     if (m_saveQueue.contains(slot))
@@ -1261,6 +1261,7 @@ metadata_map *GDriveManager::getMetadataMap()
 
 void GDriveManager::setCurrentPopup(GDrivePopup *popup)
 {
+    GDriveManager::getInstance()->clearMetadata();
     m_currentPopup = popup;
 }
 void GDriveManager::setCurrentSigninPopup(GDriveSigninPopup *signinPopup)
