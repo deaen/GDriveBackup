@@ -4,8 +4,8 @@ using namespace geode::prelude;
 #include "GDrivePopup.hpp"
 #include "GDriveSigninPopup.hpp"
 
-using folderdata_map = std::map<std::string, std::string>; // var = value
-using sizedata_map = std::map<std::string, folderdata_map>; // username = [var, value]
+using folderdata_map = std::map<std::string, std::string>;         // var = value
+using sizedata_map = std::map<std::string, folderdata_map>;        // username = [var, value]
 using slotdata_map = std::unordered_map<std::string, std::string>; // var = value
 using metadata_map = std::unordered_map<int, slotdata_map>;        // slot = [var, value]
 
@@ -31,7 +31,6 @@ class GDriveManager : public cocos2d::CCObject
     arc::Future<std::optional<std::string>> getUserFolderID(const bool autoCreate = true);
     arc::Future<std::optional<std::string>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
     arc::Future<bool> getMetadata2(); // rename this to get metadata later and the other one to like loadMetadataOrMaybeYouWontEvenNeedItWhoKnows
-    arc::Future<bool> getMetadata(const int slot);
     arc::Future<bool> setDescription(const std::string description, const int slot);
     arc::Future<bool> deleteFile(const int slot);
     arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
@@ -59,14 +58,8 @@ class GDriveManager : public cocos2d::CCObject
 
     void showError(const std::string_view title = "GDriveBackup", const std::string_view error = "", bool invasive = true);
 
-    enum QueueType
-    {
-        Save,
-        Metadata
-    };
-
-    void addToQueue(QueueType queueType, GDriveSlotBox *box);
-    void removeFromQueue(QueueType queueType, const int slot);
+    void addToQueue(GDriveSlotBox *box);
+    void removeFromQueue(const int slot);
 
     enum Status
     {
@@ -75,8 +68,8 @@ class GDriveManager : public cocos2d::CCObject
         Working
     };
 
-    Status checkStatus(QueueType queueType, GDriveSlotBox *box);
-    void removeBoxPointer(QueueType queueType, const int slot);
+    Status checkStatus(GDriveSlotBox *box);
+    void removeBoxPointer(const int slot);
 
     size_t getSaveProgress();
     size_t getSaveTotal();
@@ -92,20 +85,16 @@ class GDriveManager : public cocos2d::CCObject
   private:
     GDriveManager();
 
+    void updateQueue();
+    void setGettingMetadataStatus(bool status);
+
     GDrivePopup *m_currentPopup = nullptr;
     GDriveSigninPopup *m_currentSigninPopup = nullptr;
-    // std::string m_uuid;
-    // time_t m_timestamp = 0;
-
-    void updateQueue(QueueType queueType);
-    void setgettingMetadataStatus(bool status);
 
     async::TaskHolder<bool> m_saveListener;
     async::TaskHolder<bool> m_loadListener;
-    async::TaskHolder<bool> m_metadataListener;
 
     std::map<int, GDriveSlotBox *> m_saveQueue;
-    std::map<int, GDriveSlotBox *> m_metadataQueue;
 
     size_t m_saveProgress = 0;
     size_t m_saveTotal = 0;

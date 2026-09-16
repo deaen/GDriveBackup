@@ -1,11 +1,10 @@
 #include "GDriveSlotBox.hpp"
-
 #include "GDriveManager.hpp"
 
-GDriveSlotBox *GDriveSlotBox::create(int slot, bool enableEditMode, float width, float height)
+GDriveSlotBox *GDriveSlotBox::create(int slot, bool enableEditMode)
 {
     auto ret = new GDriveSlotBox();
-    if (ret->init(slot, enableEditMode, width, height))
+    if (ret->init(slot, enableEditMode))
     {
         ret->autorelease();
         return ret;
@@ -17,13 +16,11 @@ GDriveSlotBox *GDriveSlotBox::create(int slot, bool enableEditMode, float width,
 
 void GDriveSlotBox::onExitTransitionDidStart()
 {
-    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Save, getSlot());
-    GDriveManager::getInstance()->removeBoxPointer(GDriveManager::Metadata, getSlot());
-
+    GDriveManager::getInstance()->removeBoxPointer(getSlot());
     CCNode::onExitTransitionDidStart();
 }
 
-bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float height)
+bool GDriveSlotBox::init(int slot, bool enableEditMode)
 {
     if (!CCNode::init())
         return false;
@@ -61,7 +58,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
 
     auto rightBorder = NineSlice::createWithSpriteFrameName("GJ_commentSide2_001.png");
     rightBorder->setContentHeight(height - 20.f);
-    rightBorder->setAnchorPoint({0., 0.5f});
+    rightBorder->setAnchorPoint({0.f, 0.5f});
     rightBorder->setScaleX(-1.f);
     rightBorder->setID("right-border"_spr);
     this->addChildAtPosition(rightBorder, Anchor::Right);
@@ -75,7 +72,6 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
     /* Menu */
     m_menu = CCMenu::create();
     m_menu->setContentSize({width, height - 5.f});
-    m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between)); // row: RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between)
     m_menu->setID("menu"_spr);
 
     /* Title */
@@ -91,8 +87,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
 
     /* Info Row */
     m_infoRow = CCNode::create();
-    m_infoRow->setLayout(RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Center));
-    m_infoRow->setContentWidth(m_menu->getScaledContentWidth() + 17.f); //  + 17.f // row: (width / 2.f)
+    m_infoRow->setContentWidth(m_menu->getScaledContentWidth() + 17.f);
     m_infoRow->setAnchorPoint({0.5f, 0.5f});
     m_infoRow->setID("info-row"_spr);
 
@@ -104,22 +99,21 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
 
     /* Time Column */
     m_timeColumn = CCNode::create();
-    m_timeColumn->setLayout(ColumnLayout::create()->setAutoScale(true)->setCrossAxisLineAlignment(AxisAlignment::Start)->setGap(0));
     m_timeColumn->setContentHeight(25.f);
     m_timeColumn->setAnchorPoint({0.5f, 0.5f});
     m_timeColumn->setID("time-column"_spr);
 
-    /*Date Label*/
+    /*Date Label */
     m_dateLabel = CCLabelBMFont::create("Saved", "chatFont.fnt");
     m_dateLabel->setID("time-label"_spr);
     m_timeColumn->addChild(m_dateLabel);
 
-    /*Time Label*/
+    /*Time Label */
     m_timeLabel = CCLabelBMFont::create("Never", "chatFont.fnt");
     m_timeLabel->setID("time-label"_spr);
     m_timeColumn->addChild(m_timeLabel);
 
-    m_timeColumn->updateLayout();
+    m_timeColumn->setLayout(ColumnLayout::create()->setAutoScale(true)->setCrossAxisLineAlignment(AxisAlignment::Start)->setGap(0));
     m_infoRow->addChild(m_timeColumn);
 
     /* Size Icon */
@@ -128,12 +122,12 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
     sizeIcon->setID("size-icon"_spr);
     m_infoRow->addChild(sizeIcon);
 
-    /*Size Label*/
+    /* Size Label */
     m_sizeLabel = CCLabelBMFont::create("N/A", "chatFont.fnt");
     m_sizeLabel->setID("size-label"_spr);
     m_infoRow->addChild(m_sizeLabel);
 
-    m_infoRow->updateLayout();
+    m_infoRow->setLayout(RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Center));
 
     /* Edit Menu */
     m_editMenu = CCMenu::create();
@@ -143,7 +137,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
     m_editMenu->setAnchorPoint({.5f, 1.f});
     this->addChildAtPosition(m_editMenu, Anchor::TopLeft, {10.f, 8.f});
 
-    /*Title Button*/
+    /* Title Button */
     m_titleButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::create(CCLabelBMFont::create("A", "bigFont.fnt"), CircleBaseColor::Green, CircleBaseSize::Small), this, menu_selector(GDriveSlotBox::onConfirmTitle));
     m_titleButton->setID("title-button"_spr);
     m_editMenu->addChild(m_titleButton);
@@ -161,60 +155,13 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
     m_titleButton->setVisible(false);
     m_deleteButton->setVisible(false);
     m_editSpinner->setVisible(false);
-    m_editMenu->updateLayout();
-
-    /*
-    if (getSlot() == 0)
-     {
-         // Auto Slot Text Column
-         auto textColumn = CCNode::create();
-         textColumn->setLayout(ColumnLayout::create()
-                                   ->setAxisReverse(true)
-                                   ->setAutoScale(true)
-                                   ->setAxisAlignment(AxisAlignment::Between)
-                                   ->setCrossAxisLineAlignment(AxisAlignment::Start));
-         textColumn->setContentHeight(m_menu->getContentHeight());
-         textColumn->setID("text-column"_spr);
-
-         // m_slotTitle->setCString("Automatic Backup");
-         // add title and info to column
-         textColumn->addChild(m_slotTitle);
-
-         textColumn->addChild(m_infoRow);
-
-         textColumn->updateLayout();
-         m_menu->addChild(textColumn);
-
-         auto buttonColumn = CCMenu::create();
-         buttonColumn->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(false)->setAxisAlignment(
-             AxisAlignment::Between));
-         buttonColumn->setContentSize({width / 4.f, m_menu->getContentHeight()});
-         buttonColumn->setID("button-column"_spr);
-
-         m_loadButton->setScale(0.9);
-         m_loadButton->m_baseScale = 0.9;
-         buttonColumn->addChild(m_loadButton);
-
-         //Freq Label
-         auto freqLabel = CCLabelBMFont::create("Every 6 hours", "goldFont.fnt");
-         freqLabel->setScale(0.35f);
-         freqLabel->setID("freq-label"_spr);
-         buttonColumn->addChild(freqLabel);
-
-         buttonColumn->updateLayout();
-         m_menu->addChild(buttonColumn);
-
-         m_menu->setContentWidth(width - 45.f);
-     }
-     else
-     {
-     */
-
-    // Add children to m_menu
+    m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between));
+    
+    /* Add children to m_menu */
     m_menu->addChild(m_slotTitle);
     m_menu->addChild(m_infoRow);
 
-    /* separator */
+    /* Separator */
     m_separator = NineSlice::createWithSpriteFrameName("floorLine_01_001.png");
     m_separator->setInsetLeft(m_separator->getContentWidth() / 3);
     m_separator->setContentSize({m_menu->getScaledContentWidth(), 1.f});
@@ -257,8 +204,6 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
     m_statusSpinner->setID("status-spinner"_spr);
     m_menu->addChild(m_statusSpinner);
 
-    // }
-
     setStatusVisiblity(false);
     this->addChildAtPosition(m_menu, Anchor::Center);
 
@@ -269,7 +214,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode, float width, float heigh
 
 void GDriveSlotBox::updateStatus()
 {
-    auto saveStatus = GDriveManager::getInstance()->checkStatus(GDriveManager::Save, this);
+    auto saveStatus = GDriveManager::getInstance()->checkStatus(this);
     if (saveStatus == GDriveManager::Working)
     {
         setStatusVisiblity(true);
@@ -295,8 +240,6 @@ void GDriveSlotBox::updateStatus()
             setShouldEditMode(true);
             setEditMode(true);
         }
-
-        // GDriveManager::getInstance()->addToQueue(GDriveManager::Metadata, this);
 
         auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
         if (metadataMap && !metadataMap->contains(getSlot()) && GDriveManager::getInstance()->getMetadataStatus())
@@ -336,7 +279,7 @@ void GDriveSlotBox::onSave(CCObject *sender)
                     setEditMode(true);
                 }
 
-                GDriveManager::getInstance()->addToQueue(GDriveManager::Save, this);
+                GDriveManager::getInstance()->addToQueue(this);
             }
         },
         true, true);
@@ -364,11 +307,12 @@ void GDriveSlotBox::onCancel(CCObject *sender)
             if (btn2)
             {
                 setStatusVisiblity(false);
-                GDriveManager::getInstance()->removeFromQueue(GDriveManager::Save, getSlot());
+                GDriveManager::getInstance()->removeFromQueue(getSlot());
             }
         },
         true, true);
 }
+
 void GDriveSlotBox::onDelete(CCObject *sender)
 {
     auto deletePopup = createQuickPopup(
@@ -602,7 +546,7 @@ float GDriveSlotBox::getCalculatedScale(float childWidth, float childScale)
 
 void GDriveSlotBox::loadMetadata()
 {
-    if (GDriveManager::getInstance()->checkStatus(GDriveManager::QueueType::Save, this) == GDriveManager::Status::Idle)
+    if (GDriveManager::getInstance()->checkStatus(this) == GDriveManager::Status::Idle)
     {
         setStatusVisiblity(false);
         setMetadataStatus(false);

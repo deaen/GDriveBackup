@@ -1,10 +1,9 @@
 #include <Geode/Geode.hpp>
-using namespace geode::prelude;
-
 #include <Geode/modify/AccountLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
-
 #include "GDrivePopup.hpp"
+
+using namespace geode::prelude;
 
 class $modify(GDriveMenuLayer, MenuLayer)
 {
@@ -17,6 +16,7 @@ class $modify(GDriveMenuLayer, MenuLayer)
         if (!Mod::get()->getSettingValue<bool>("bottom-button"))
             return true;
 
+        /* Main Menu GDrive Button */
         if (auto menu = this->getChildByID("bottom-menu"))
         {
             auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Green, CircleBaseSize::MediumAlt), this, menu_selector(GDriveMenuLayer::onGDriveButton));
@@ -27,6 +27,7 @@ class $modify(GDriveMenuLayer, MenuLayer)
 
         return true;
     }
+
     void onGDriveButton(CCObject *)
     {
         GDrivePopup::create();
@@ -40,9 +41,10 @@ class $modify(GDriveAccountLayer, AccountLayer)
     {
         AccountLayer::customSetup();
 
+        /* Account layer GDrive button */
+
         if (auto menu = CCMenu::create())
         {
-
             auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Pink, CircleBaseSize::BigAlt), this, menu_selector(GDriveAccountLayer::onGDriveButton));
             gdriveButton->setID("gdrive-button"_spr);
 
@@ -66,7 +68,9 @@ class $modify(GDriveAccountLayer, AccountLayer)
                     menu->setPosition({m_listLayer->getPositionX() + m_listLayer->getContentWidth(), m_listLayer->getPositionY() + m_listLayer->getContentHeight()});
                 }
                 else if (pos == "bottom left")
+                {
                     menu->setPosition({m_listLayer->getPositionX(), m_listLayer->getPositionY()});
+                }
                 else if (pos == "center left")
                 {
                     menu->setAnchorPoint({0.6f, 0.5f});
@@ -77,13 +81,10 @@ class $modify(GDriveAccountLayer, AccountLayer)
                     menu->setAnchorPoint({0.6f, 0.25f});
                     menu->setPosition({m_listLayer->getPositionX(), m_listLayer->getPositionY() + m_listLayer->getContentHeight()});
                 }
-                // else if (pos == "top")
-                // {
-                //     menu->setAnchorPoint({0.5f, 0.250f});
-                //     menu->setPositionY(m_listLayer->getPositionY() + m_listLayer->getContentHeight());
-                // }
                 else if (pos == "bottom")
+                {
                     menu->setPositionY(m_listLayer->getPositionY());
+                }
             }
             if (m_mainLayer)
                 m_mainLayer->addChild(menu);

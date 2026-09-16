@@ -4,7 +4,7 @@ using namespace geode::prelude;
 class GDriveSlotBox : public CCNode
 {
   public:
-    static GDriveSlotBox *create(int slot, bool enableEditMode = false, float width = 136.6f, float height = 100.f);
+    static GDriveSlotBox *create(int slot, bool enableEditMode = false);
     void onExitTransitionDidStart() override;
 
     int getSlot();
@@ -24,7 +24,7 @@ class GDriveSlotBox : public CCNode
     bool getShouldEditMode();
 
   private:
-    bool init(int slot, bool enableEditMode, float width, float height);
+    bool init(int slot, bool enableEditMode);
 
     CCMenu *m_menu;
     TextInput *m_slotTitle;
@@ -50,6 +50,8 @@ class GDriveSlotBox : public CCNode
     CCMenuItemSpriteExtra *m_deleteButton;
     LoadingSpinner *m_editSpinner;
 
+    static constexpr float width = 136.6f;
+    static constexpr float height = 100.f;
     int m_slot = 0;
     size_t m_total = 0;
     size_t m_progress = 0;
@@ -65,7 +67,7 @@ class GDriveSlotBox : public CCNode
     bool m_shouldEditMode = false;
 
     void updateStatus();
-    
+
     void onSave(CCObject *sender);
     void onLoad(CCObject *sender);
     void onCancel(CCObject *sender);

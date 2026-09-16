@@ -1,10 +1,7 @@
 #include "Geode/ui/Popup.hpp"
 #include <Geode/loader/Mod.hpp>
 #include <Geode/loader/SettingV3.hpp>
-
 #include <GDriveManager.hpp>
-
-using namespace geode::prelude;
 
 class GDriveSettingsButton : public SettingV3
 {
@@ -40,6 +37,7 @@ class GDriveSettingsButton : public SettingV3
     SettingNodeV3 *createNode(float width) override;
 };
 
+/* I don't remember this */
 class GDriveSettingsButtonNode : public SettingNodeV3
 {
   protected:

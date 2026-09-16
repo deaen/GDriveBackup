@@ -1,10 +1,8 @@
 #include "GDrivePopup.hpp"
-
-#include <Geode/ui/GeodeUI.hpp>
-
 #include "GDriveManager.hpp"
 #include "GDriveSigninPopup.hpp"
 #include "GDriveSizeInfoPopup.hpp"
+#include <Geode/ui/GeodeUI.hpp>
 
 GDrivePopup *GDrivePopup::create()
 {
@@ -27,31 +25,59 @@ GDrivePopup *GDrivePopup::create()
 
 bool GDrivePopup::init()
 {
-    if (!Popup::init(470.f, 235.f, "GJ_square02.png"))
+    if (!Popup::init(popupWidth, popupHeight, "GJ_square02.png"))
         return false;
+
     GDriveManager::getInstance()->setCurrentPopup(this);
     this->setID("gdrive-popup"_spr);
 
-    /* Title Sprite */
-    auto titleSprite = CCSprite::create("title.png"_spr);
-    titleSprite->setID("title-sprite"_spr);
-    m_mainLayer->addChildAtPosition(titleSprite, Anchor::Top, {0, -33.f});
-
-    /* Popup Column */
+    /* Popup column */
     auto popupColumn = CCMenu::create();
-    popupColumn->setLayout(
-        ColumnLayout::create()->setAxisReverse(true)->setGap(17.f)->setAxisAlignment(AxisAlignment::Start));
-    popupColumn->setContentSize({400.f, m_mainLayer->getContentHeight() - 60.f});
+    popupColumn->setContentSize({popupWidth - 70.f, popupHeight});
     popupColumn->setAnchorPoint({0.5f, 0.5f});
     popupColumn->setID("popup-column"_spr);
 
-    /* Auto Slot */
-    // popupColumn->addChild(GDriveSlotBox::create(0, popupColumn->getContentWidth(), 40.f));
+    /* Title sprite */
+    auto titleSprite = CCSprite::create("title.png"_spr);
+    titleSprite->setID("title-sprite"_spr);
+    titleSprite->setLayoutOptions(AxisLayoutOptions::create()->setPrevGap(7.f));
+    popupColumn->addChild(titleSprite);
+
+    /* Name Row */
+    auto nameRow = CCMenu::create();
+    nameRow->setContentWidth(popupWidth);
+    nameRow->setAnchorPoint({0.5f, 0.5f});
+    nameRow->setLayoutOptions(AxisLayoutOptions::create()->setPrevGap(11.f));
+    nameRow->setScale(0.6f);
+    nameRow->setID("name-row"_spr);
+
+    /* Player Name */
+    int accID = GJAccountManager::sharedState()->m_accountID;
+    auto playerName = CCLabelBMFont::create((accID != 0) ? GameManager::sharedState()->m_playerName.c_str() : "Unregistered", "goldFont.fnt");
+    if (!accID)
+        playerName->setColor({255, 0, 0});
+    playerName->setID("player-name"_spr);
+    nameRow->addChild(playerName);
+
+    /* 's saves */
+    auto ssavesLabel = CCLabelBMFont::create((accID != 0) ? "'s saves" : "saves", "bigFont.fnt");
+    ssavesLabel->setScale(0.8f);
+    ssavesLabel->setID("saves-label"_spr);
+    nameRow->addChild(ssavesLabel);
+
+    /* Name info button */
+    auto infoIconSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
+    infoIconSpr->setScale(0.6f);
+    auto nameInfoButton = CCMenuItemSpriteExtra::create(infoIconSpr, this, menu_selector(GDrivePopup::onNameInfo));
+    nameInfoButton->setID("name-info-button"_spr);
+    nameRow->addChild(nameInfoButton);
+
+    nameRow->setLayout(RowLayout::create()->setAutoScale(false)->setAxisAlignment(AxisAlignment::Center)->setCrossAxisLineAlignment(AxisAlignment::End));
+    popupColumn->addChild(nameRow);
 
     /* Slot Row */
     m_slotRow = CCNode::create();
-    m_slotRow->setLayout(
-        RowLayout::create()->setGap(-5.f)->setAxisAlignment(AxisAlignment::Start)->setAutoScale(false));
+    m_slotRow->setLayout(RowLayout::create()->setGap(-5.f)->setAxisAlignment(AxisAlignment::Start)->setAutoScale(false));
     m_slotRow->setContentSize({popupColumn->getContentWidth(), 100.f});
     m_slotRow->setAnchorPoint({0.5f, 0.5f});
     m_slotRow->setID("slot-row"_spr);
@@ -74,13 +100,13 @@ bool GDrivePopup::init()
     m_rightArrowButton->setID("right-arrow-button"_spr);
     m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right, {-(m_rightArrowButton->getContentWidth() / 2) - 7.f, -13.f});
 
-    /* Page Button Row */
+            /* Page Button Row */
     m_pageButtonsRow = CCMenu::create();
-    m_pageButtonsRow->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::Center)->setAutoScale(true));
     m_pageButtonsRow->setContentWidth(popupColumn->getContentWidth());
     m_pageButtonsRow->setAnchorPoint({0.5f, 0.5f});
     m_pageButtonsRow->setID("page-button-row"_spr);
-
+    
+    /* Slot & metadata setup */
     async::spawn(GDriveManager::getInstance()->getMetadata2(), [this](bool gotData) {
         for (const auto &box : m_slotBoxes)
         {
@@ -93,7 +119,7 @@ bool GDrivePopup::init()
     });
 
     showSlotPage(1);
-
+    
     for (int i = 1; i <= m_maxSlotPage; ++i)
     {
         auto buttonSpr = CCSprite::create("smallDot.png");
@@ -103,55 +129,17 @@ bool GDrivePopup::init()
         button->setID(fmt::format("page-button-{}"_spr, i));
         m_pageButtonsRow->addChild(button);
 
-        // i dont fuckin care anymore
         if (i == m_currentSlotPage)
             button->setColor({255, 255, 255});
         else
             button->setColor({125, 125, 125});
     }
 
-    m_pageButtonsRow->updateLayout();
+    m_pageButtonsRow->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::Center)->setAutoScale(true));
     popupColumn->addChild(m_pageButtonsRow);
 
-    popupColumn->updateLayout();
-    m_mainLayer->addChildAtPosition(popupColumn, Anchor::Center); //, {0, -50.f});
-
-    /* Name Row */
-    auto infoRow = CCMenu::create();
-    infoRow->setLayout(RowLayout::create()
-                           ->setAutoScale(false)
-                           ->setAxisAlignment(AxisAlignment::Center)
-                           ->setGap(0.f)
-                           ->setCrossAxisLineAlignment(AxisAlignment::End));
-    infoRow->setContentWidth(m_mainLayer->getContentWidth());
-    infoRow->setAnchorPoint({0.5f, 0.5f});
-    infoRow->setScale(0.6f);
-    infoRow->setID("name-row"_spr);
-
-    /* Player Name */
-    int accID = GJAccountManager::sharedState()->m_accountID;
-    auto playerName = CCLabelBMFont::create(
-        (accID != 0) ? GameManager::sharedState()->m_playerName.c_str() : "Unregistered", "goldFont.fnt");
-    if (!accID)
-        playerName->setColor({255, 0, 0});
-    playerName->setID("player-name"_spr);
-    infoRow->addChild(playerName);
-
-    /* 's saves */
-    auto ssavesLabel = CCLabelBMFont::create((accID != 0) ? "'s saves" : "saves", "bigFont.fnt");
-    ssavesLabel->setScale(0.8f);
-    ssavesLabel->setID("saves-label"_spr);
-    infoRow->addChild(ssavesLabel);
-
-    /* Name info button */
-    auto infoIconSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
-    infoIconSpr->setScale(0.6f);
-    auto nameInfoButton = CCMenuItemSpriteExtra::create(infoIconSpr, this, menu_selector(GDrivePopup::onNameInfo));
-    nameInfoButton->setID("name-info-button"_spr);
-    infoRow->addChild(nameInfoButton);
-
-    infoRow->updateLayout();
-    m_mainLayer->addChildAtPosition(infoRow, Anchor::Top, {0, -65.f});
+    popupColumn->setLayout(ColumnLayout::create()->setAxisReverse(true)->setGap(15.f)->setPadding({0.f, 0.f, 0.f, 36.f})->setAxisAlignment(AxisAlignment::Center)->setAutoScale(false));
+    m_mainLayer->addChildAtPosition(popupColumn, Anchor::Center);
 
     setupEmail();
 
@@ -182,7 +170,6 @@ bool GDrivePopup::init()
 
     /* Bottom Right Menu */
     auto bottomRightMenu = CCMenu::create();
-    bottomRightMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(3.f));
     bottomRightMenu->setID("bottom-right-menu"_spr);
     bottomRightMenu->setScale(0.6f);
     bottomRightMenu->setAnchorPoint({1.f, 0});
@@ -196,7 +183,7 @@ bool GDrivePopup::init()
     bottomRightMenu->addChild(editButton);
 
     /* Edit Button */
-    auto sizeButtonSpr =  CircleButtonSprite::createWithSprite("size.png"_spr, 0.77f, CircleBaseColor::Green, CircleBaseSize::MediumAlt);
+    auto sizeButtonSpr = CircleButtonSprite::createWithSprite("size.png"_spr, 0.77f, CircleBaseColor::Green, CircleBaseSize::MediumAlt);
     editButtonSpr->setScale(1.05f);
     auto sizeButton = CCMenuItemSpriteExtra::create(sizeButtonSpr, this, menu_selector(GDrivePopup::onSizeInfo));
     sizeButton->setID("size-button"_spr);
@@ -207,10 +194,11 @@ bool GDrivePopup::init()
     modSettingsButton->setID("mod-settings-button"_spr);
     bottomRightMenu->addChild(modSettingsButton);
 
-    bottomRightMenu->updateLayout();
-
+    bottomRightMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(3.f));
+ 
     return true;
 }
+
 void GDrivePopup::onExitTransitionDidStart()
 {
     Popup::onExitTransitionDidStart();
@@ -231,17 +219,18 @@ void GDrivePopup::onToggleAccountVisibility(CCObject *sender)
     m_hideEmailButton->setPosition({(m_emailLabel->getPositionX() + (m_emailLabel->getScaledContentWidth() / 2.f) + (m_hideEmailButton->getScaledContentWidth() / 2.f)), (m_emailLabel->getPositionY() + (m_emailLabel->getScaledContentHeight() / 4.f))});
     m_emailVisible = !m_emailVisible;
 }
+
 void GDrivePopup::onNameInfo(CCObject *sender)
 {
     int accID = GJAccountManager::sharedState()->m_accountID;
     FLAlertLayer::create(
         "Account info",
         (accID != 0)
-            ? fmt::format("Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty Cool!\nfolder ID: <cy>{}</c>", accID)
-            : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will <cr>overwrite</c> any other data you might have saved while signed out on other sessions/devices.\nfolder ID: <cy>{}</c>", accID),
-        "Okay")
-        ->show();
+            ? fmt::format("Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty Cool!\naccount ID: <cy>{}</c>", accID)
+            : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will <cr>overwrite</c> any other data you might have saved while signed out on other sessions/devices.\naccount ID: <cy>{}</c>", accID),
+        "Okay")->show();
 }
+
 void GDrivePopup::onSizeInfo(CCObject *sender)
 {
     GDriveLoadLayer *layer = GDriveLoadLayer::create();
@@ -281,7 +270,7 @@ void GDrivePopup::setupEmail()
     /* Email Loading */
     auto spinner = LoadingSpinner::create(15.f);
     spinner->setID("email-spinner"_spr);
-    m_mainLayer->addChildAtPosition(spinner, Anchor::Bottom, {0, 15.f});
+    m_mainLayer->addChildAtPosition(spinner, Anchor::Bottom, {0, 16.f});
 
     async::spawn(GDriveManager::getInstance()->getEmail(), [this, spinner](std::string email) {
         spinner->setVisible(false);
@@ -300,7 +289,7 @@ void GDrivePopup::setupEmail()
         m_emailLabel->setScale(0.4f);
         m_emailLabel->setAnchorPoint({0.5f, 0.5f});
         m_emailLabel->setID("email-label"_spr);
-        m_emailLabel->setPosition({m_buttonMenu->getContentWidth() / 2.f, 15.f});
+        m_emailLabel->setPosition({m_buttonMenu->getContentWidth() / 2.f, 16.f});
         m_buttonMenu->addChild(m_emailLabel);
 
         /* Hide Email Button */
@@ -357,8 +346,6 @@ void GDrivePopup::showSlotPage(int pageNumber)
         {
             m_slotBoxes[vecdex] = GDriveSlotBox::create(i, m_editMode);
             m_slotRow->addChild(m_slotBoxes[vecdex]);
-            // if (!GDriveManager::getInstance()->getMetadataStatus())
-            //     m_slotBoxes[vecdex]->loadMetadata();
         }
         else
             m_slotBoxes[vecdex]->setVisible(true);
@@ -367,6 +354,7 @@ void GDrivePopup::showSlotPage(int pageNumber)
     m_slotRow->updateLayout();
     m_currentSlotPage = pageNumber;
 }
+
 void GDrivePopup::onToggleEditMode(CCObject *sender)
 {
     m_editMode = !m_editMode;

@@ -110,7 +110,8 @@ inline word_t ssig1(word_t x)
     return rotr(x, 17) ^ rotr(x, 19) ^ shr(x, 10);
 }
 
-template <typename RaIter1, typename RaIter2> void hash256_block(RaIter1 message_digest, RaIter2 first, RaIter2 last)
+template <typename RaIter1, typename RaIter2>
+void hash256_block(RaIter1 message_digest, RaIter2 first, RaIter2 last)
 {
     assert(first + 64 == last);
     static_cast<void>(last); // for avoiding unused-variable warning
@@ -166,7 +167,8 @@ template <typename RaIter1, typename RaIter2> void hash256_block(RaIter1 message
 
 } // namespace detail
 
-template <typename InIter> void output_hex(InIter first, InIter last, std::ostream &os)
+template <typename InIter>
+void output_hex(InIter first, InIter last, std::ostream &os)
 {
     os.setf(std::ios::hex, std::ios::basefield);
     while (first != last)
@@ -179,26 +181,30 @@ template <typename InIter> void output_hex(InIter first, InIter last, std::ostre
     os.setf(std::ios::dec, std::ios::basefield);
 }
 
-template <typename InIter> void bytes_to_hex_string(InIter first, InIter last, std::string &hex_str)
+template <typename InIter>
+void bytes_to_hex_string(InIter first, InIter last, std::string &hex_str)
 {
     std::ostringstream oss;
     output_hex(first, last, oss);
     hex_str.assign(oss.str());
 }
 
-template <typename InContainer> void bytes_to_hex_string(const InContainer &bytes, std::string &hex_str)
+template <typename InContainer>
+void bytes_to_hex_string(const InContainer &bytes, std::string &hex_str)
 {
     bytes_to_hex_string(bytes.begin(), bytes.end(), hex_str);
 }
 
-template <typename InIter> std::string bytes_to_hex_string(InIter first, InIter last)
+template <typename InIter>
+std::string bytes_to_hex_string(InIter first, InIter last)
 {
     std::string hex_str;
     bytes_to_hex_string(first, last, hex_str);
     return hex_str;
 }
 
-template <typename InContainer> std::string bytes_to_hex_string(const InContainer &bytes)
+template <typename InContainer>
+std::string bytes_to_hex_string(const InContainer &bytes)
 {
     std::string hex_str;
     bytes_to_hex_string(bytes, hex_str);
@@ -220,7 +226,8 @@ class hash256_one_by_one
         std::copy(detail::initial_message_digest, detail::initial_message_digest + 8, h_);
     }
 
-    template <typename RaIter> void process(RaIter first, RaIter last)
+    template <typename RaIter>
+    void process(RaIter first, RaIter last)
     {
         add_to_data_length(static_cast<word_t>(std::distance(first, last)));
         std::copy(first, last, std::back_inserter(buffer_));
@@ -267,7 +274,8 @@ class hash256_one_by_one
         detail::hash256_block(h_, temp, temp + 64);
     }
 
-    template <typename OutIter> void get_hash_bytes(OutIter first, OutIter last) const
+    template <typename OutIter>
+    void get_hash_bytes(OutIter first, OutIter last) const
     {
         for (const word_t *iter = h_; iter != h_ + 8; ++iter)
         {
@@ -385,22 +393,26 @@ void hash256(InIter first, InIter last, OutIter first2, OutIter last2,
                                  typename std::iterator_traits<InIter>::iterator_category());
 }
 
-template <typename InIter, typename OutContainer> void hash256(InIter first, InIter last, OutContainer &dst)
+template <typename InIter, typename OutContainer>
+void hash256(InIter first, InIter last, OutContainer &dst)
 {
     hash256(first, last, dst.begin(), dst.end());
 }
 
-template <typename InContainer, typename OutIter> void hash256(const InContainer &src, OutIter first, OutIter last)
+template <typename InContainer, typename OutIter>
+void hash256(const InContainer &src, OutIter first, OutIter last)
 {
     hash256(src.begin(), src.end(), first, last);
 }
 
-template <typename InContainer, typename OutContainer> void hash256(const InContainer &src, OutContainer &dst)
+template <typename InContainer, typename OutContainer>
+void hash256(const InContainer &src, OutContainer &dst)
 {
     hash256(src.begin(), src.end(), dst.begin(), dst.end());
 }
 
-template <typename InIter> void hash256_hex_string(InIter first, InIter last, std::string &hex_str)
+template <typename InIter>
+void hash256_hex_string(InIter first, InIter last, std::string &hex_str)
 {
     byte_t hashed[k_digest_size];
     hash256(first, last, hashed, hashed + k_digest_size);
@@ -409,7 +421,8 @@ template <typename InIter> void hash256_hex_string(InIter first, InIter last, st
     hex_str.assign(oss.str());
 }
 
-template <typename InIter> std::string hash256_hex_string(InIter first, InIter last)
+template <typename InIter>
+std::string hash256_hex_string(InIter first, InIter last)
 {
     std::string hex_str;
     hash256_hex_string(first, last, hex_str);
@@ -421,16 +434,19 @@ inline void hash256_hex_string(const std::string &src, std::string &hex_str)
     hash256_hex_string(src.begin(), src.end(), hex_str);
 }
 
-template <typename InContainer> void hash256_hex_string(const InContainer &src, std::string &hex_str)
+template <typename InContainer>
+void hash256_hex_string(const InContainer &src, std::string &hex_str)
 {
     hash256_hex_string(src.begin(), src.end(), hex_str);
 }
 
-template <typename InContainer> std::string hash256_hex_string(const InContainer &src)
+template <typename InContainer>
+std::string hash256_hex_string(const InContainer &src)
 {
     return hash256_hex_string(src.begin(), src.end());
 }
-template <typename OutIter> void hash256(std::ifstream &f, OutIter first, OutIter last)
+template <typename OutIter>
+void hash256(std::ifstream &f, OutIter first, OutIter last)
 {
     hash256(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>(), first, last);
 }

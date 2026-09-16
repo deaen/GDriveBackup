@@ -1,9 +1,7 @@
 #include "GDriveManager.hpp"
-
+#include <ctime>
 #include <Geode/binding/LocalLevelManager.hpp>
 #include <Geode/utils/base64.hpp>
-#include <ctime>
-
 #include "GDriveEncrypt.hpp"
 
 #ifdef GEODE_IS_ANDROID
@@ -19,10 +17,9 @@ GDriveManager *GDriveManager::getInstance()
 GDriveManager::GDriveManager()
 {
     m_saveListener.setName("gdrive-save-listener");
-    m_metadataListener.setName("gdrive-metadata-listener");
     m_loadListener.setName("gdrive-load-listener");
 
-// Get the android hardware ID and store in here to avoid all the threading nonsense
+/* Get the android hardware ID and store in here to avoid all the threading nonsense */
 #ifdef GEODE_IS_ANDROID
     JniMethodInfo t;
     JniHelper::getJavaVM()->AttachCurrentThread(&t.env, nullptr);
@@ -47,7 +44,7 @@ GDriveManager::GDriveManager()
 #endif
 }
 
-void GDriveManager::showError(std::string_view title, std::string_view error, bool invasive)
+void GDriveManager::showError(const std::string_view title, const std::string_view error, const bool invasive)
 {
     if (invasive)
     {
@@ -135,13 +132,11 @@ void GDriveManager::verify()
     });
 }
 
-void GDriveManager::signout(bool openAgain)
+void GDriveManager::signout(const bool openAgain)
 {
     m_saveListener.cancel();
     m_loadListener.cancel();
-    m_metadataListener.cancel();
     m_saveQueue.clear();
-    m_metadataQueue.clear();
 
     if (m_currentPopup)
         m_currentPopup->removeFromParent();
@@ -412,7 +407,7 @@ void GDriveManager::saveData(const int slot)
         if (ok)
             Notification::create(fmt::format("GDrive Backup: Slot {} Save Complete!", slot), NotificationIcon::Success, 5.f)->show();
 
-        removeFromQueue(Save, slot);
+        removeFromQueue(slot);
     });
 }
 
@@ -434,45 +429,19 @@ void GDriveManager::loadData(const int slot)
     });
 }
 
-void GDriveManager::loadMetadata(const int slot)
-{
-    m_metadataListener.spawn(getMetadata(slot), [this, slot](bool ok) {
-        if (!ok)
-        {
-            Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), 0);
-            Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), 0);
-        }
-
-        if (m_metadataQueue[slot] && checkStatus(Save, m_metadataQueue[slot]) == Idle)
-        {
-            m_metadataQueue[slot]->setStatusVisiblity(false);
-            m_metadataQueue[slot]->setMetadataStatus(false);
-            m_metadataQueue[slot]->updateInfo();
-
-            if (m_metadataQueue[slot]->getShouldEditMode())
-            {
-                m_metadataQueue[slot]->setShouldEditMode(false);
-                m_metadataQueue[slot]->setEditMode(true);
-            }
-        }
-
-        removeFromQueue(Metadata, slot);
-    });
-}
-
 arc::Future<bool> GDriveManager::saveString(const std::string data, const int slot, web::WebRequest responseReq)
 {
     co_await waitForMainThread([slot, this] {
         if (m_saveQueue[slot])
             m_saveQueue[slot]->setStatusMessage("Preparing...");
     });
+
     m_saveProgress = 0;
     m_saveTotal = data.size();
-
     std::string resumableURL;
-
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = co_await getUserFolderID(true);
+
     if (!parentID)
     {
         co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
@@ -554,7 +523,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
                 i += currentSize;
             else if (res.badClient())
             {
-                // try 5 times before giving up
+                // try 15 times before giving up
                 if (retries < 15)
                 {
                     retries += 1;
@@ -596,6 +565,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
 
     m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
     m_metadataMap[slot]["size"] = std::to_string(data.size());
+    
     co_return true;
 }
 
@@ -605,11 +575,12 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
         if (loadLayer)
             loadLayer->setMessage("Preparing...");
     });
+
     m_loadProgress = 0;
     m_loadTotal = 0;
-
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = co_await getUserFolderID(true);
+    
     if (!parentID)
     {
         co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
@@ -736,12 +707,6 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
 
     // here we go
     co_await waitForMainThread([this, &strings, &loadLayer, slot] {
-        // if (loadLayer)
-        // {
-        //     loadLayer->setMessage("Loading data...");
-        //     loadLayer->hidePercentage();
-        // }
-
         // make the level stats string...
         DS_Dictionary gs;
         gs.loadRootSubDictFromString(ZipUtils::decompressString(std::string(strings[0]), false, 0));
@@ -768,6 +733,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
             showError(fmt::format("Slot {} load failed", slot), "Can't get levels", false);
             return;
         }
+
         // now lets make achievements silent
         auto am = AchievementManager::sharedState();
         bool oldDontNotify = am->m_dontNotify;
@@ -873,7 +839,7 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
 
 arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
 {
-    /* Varz */
+    /* Varz (vARS) (varaibles) */
     std::string token = co_await getAccessToken();
     auto parentID = co_await getMainFolderID(true);
     if (token.empty() || !parentID || (*parentID).empty())
@@ -884,6 +850,7 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
     req.header("Authorization", fmt::format("Bearer {}", token));
 
     sizedata_map sizeDataMap;
+
     /* Get Data */
     std::string nextPageToken;
     do
@@ -1038,54 +1005,7 @@ arc::Future<bool> GDriveManager::getMetadata2()
     co_return true;
 }
 
-arc::Future<bool> GDriveManager::getMetadata(const int slot)
-{
-    std::string token = co_await getAccessToken();
-    auto fileID = co_await getFileID(slot, false, "", "", false);
-    if (!fileID)
-        co_return false;
-
-    auto req = web::WebRequest();
-    req.header("Authorization", fmt::format("Bearer {}", token));
-    req.param("fields", "size,modifiedTime,description");
-
-    auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
-    if (res.ok())
-    {
-        auto timestamp = res.json().unwrapOrDefault().get<std::string>("modifiedTime").unwrapOrDefault();
-        auto size = numFromString<size_t>(res.json().unwrapOrDefault().get<std::string>("size").unwrapOrDefault()).unwrapOrDefault();
-        auto description = res.json().unwrapOrDefault().get<std::string>("description").unwrapOrDefault();
-
-        if (timestamp.empty() && size == 0)
-            co_return false;
-
-        std::tm tm;
-        std::istringstream ss(timestamp);
-        ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-
-        time_t localtime;
-
-        // lol
-#ifdef GEODE_IS_WINDOWS
-        localtime = _mkgmtime(&tm);
-#else
-        localtime = timegm(&tm);
-#endif
-
-        Mod::get()->setSavedValue<time_t>(fmt::format("{}-{}-timestamp", GJAccountManager::sharedState()->m_accountID, slot), localtime);
-        Mod::get()->setSavedValue<size_t>(fmt::format("{}-{}-size", GJAccountManager::sharedState()->m_accountID, slot), size);
-        Mod::get()->setSavedValue<std::string>(fmt::format("{}-{}-description", GJAccountManager::sharedState()->m_accountID, slot), description);
-    }
-    else
-    {
-        log::warn("{}", res.string());
-        co_return false;
-    }
-
-    co_return true;
-}
-
-arc::Future<bool> GDriveManager::setDescription(std::string description, const int slot)
+arc::Future<bool> GDriveManager::setDescription(const std::string description, const int slot)
 {
     std::string token = co_await getAccessToken();
     auto fileID = co_await getFileID(slot, false, fmt::format("Slot {} title update failed", slot));
@@ -1174,25 +1094,6 @@ arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevision
     co_return arr;
 }
 
-void GDriveManager::setCurrentPopup(GDrivePopup *popup)
-{
-    m_currentPopup = popup;
-}
-void GDriveManager::setCurrentSigninPopup(GDriveSigninPopup *signinPopup)
-{
-    m_currentSigninPopup = signinPopup;
-}
-
-GDrivePopup *GDriveManager::getCurrentPopup()
-{
-    return m_currentPopup;
-}
-
-GDriveSigninPopup *GDriveManager::getCurrentSigninPopup()
-{
-    return m_currentSigninPopup;
-}
-
 arc::Future<std::string> GDriveManager::getRefreshToken()
 {
     auto refreshToken = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("refresh_token"));
@@ -1271,75 +1172,60 @@ arc::Future<std::string> GDriveManager::getEmail()
     co_return Mod::get()->getSavedValue<std::string>("email");
 }
 
-void GDriveManager::updateQueue(QueueType queueType)
+void GDriveManager::updateQueue()
 {
-    auto *queue = (queueType == Save) ? &m_saveQueue : &m_metadataQueue;
-    if (!queue->empty() && queue->begin()->first)
+    if (!m_saveQueue.empty() && m_saveQueue.begin()->first)
     {
-        if (queueType == Save)
-            saveData(queue->begin()->first);
-        else if (queueType == Metadata)
-            loadMetadata(queue->begin()->first);
+
+            saveData(m_saveQueue.begin()->first);
     }
 }
 
-void GDriveManager::addToQueue(QueueType queueType, GDriveSlotBox *box)
+void GDriveManager::addToQueue(GDriveSlotBox *box)
 {
-    auto *queue = (queueType == Save) ? &m_saveQueue : &m_metadataQueue;
-    queue->insert_or_assign(box->getSlot(), box);
-    if (queue->begin()->first == box->getSlot())
-        updateQueue(queueType);
+    m_saveQueue.insert_or_assign(box->getSlot(), box);
+    if (m_saveQueue.begin()->first == box->getSlot())
+        updateQueue();
 }
 
-void GDriveManager::removeFromQueue(QueueType queueType, const int slot)
+void GDriveManager::removeFromQueue(const int slot)
 {
-    auto *queue = (queueType == Save) ? &m_saveQueue : &m_metadataQueue;
-
-    if (!queue->empty() && queue->begin()->first == slot)
+    if (!m_saveQueue.empty() && m_saveQueue.begin()->first == slot)
     {
-        if (queueType == Save)
             m_saveListener.cancel();
-        else if (queueType == Metadata)
-            m_metadataListener.cancel();
     }
 
-    if (queue->contains(slot))
+    if (m_saveQueue.contains(slot))
     {
-        queue->erase(slot);
-        updateQueue(queueType);
+        m_saveQueue.erase(slot);
+        updateQueue();
     }
 }
 
-GDriveManager::Status GDriveManager::checkStatus(QueueType queueType, GDriveSlotBox *box)
+GDriveManager::Status GDriveManager::checkStatus(GDriveSlotBox *box)
 {
-    auto *queue = (queueType == Save) ? &m_saveQueue : &m_metadataQueue;
-
-    if (queue->empty())
+    if (m_saveQueue.empty())
         return Idle;
-    if (queue->begin()->first == box->getSlot())
+    if (m_saveQueue.begin()->first == box->getSlot())
     {
-        queue->insert_or_assign(box->getSlot(), box);
+        m_saveQueue.insert_or_assign(box->getSlot(), box);
         return Working;
     }
-    else if (queue->contains(box->getSlot()))
+    else if (m_saveQueue.contains(box->getSlot()))
     {
-        queue->insert_or_assign(box->getSlot(), box);
+        m_saveQueue.insert_or_assign(box->getSlot(), box);
         return Waiting;
     }
 
     return Idle;
 }
 
-void GDriveManager::removeBoxPointer(QueueType queueType, const int slot)
+void GDriveManager::removeBoxPointer(const int slot)
 {
-    auto *queue = (queueType == Save) ? &m_saveQueue : &m_metadataQueue;
-    if (!queue->contains(slot))
+    if (!m_saveQueue.contains(slot))
         return;
 
-    queue->at(slot) = nullptr;
-
-    if (queueType == Metadata)
-        removeFromQueue(Metadata, slot);
+    m_saveQueue.at(slot) = nullptr;
 }
 
 size_t GDriveManager::getSaveProgress()
@@ -1361,7 +1247,7 @@ size_t GDriveManager::getLoadTotal()
 {
     return m_loadTotal;
 };
-void GDriveManager::setgettingMetadataStatus(bool status)
+void GDriveManager::setGettingMetadataStatus(bool status)
 {
     m_gettingMetadata = status;
 }
@@ -1373,6 +1259,26 @@ metadata_map *GDriveManager::getMetadataMap()
 {
     return &m_metadataMap;
 }
+
+void GDriveManager::setCurrentPopup(GDrivePopup *popup)
+{
+    m_currentPopup = popup;
+}
+void GDriveManager::setCurrentSigninPopup(GDriveSigninPopup *signinPopup)
+{
+    m_currentSigninPopup = signinPopup;
+}
+
+GDrivePopup *GDriveManager::getCurrentPopup()
+{
+    return m_currentPopup;
+}
+
+GDriveSigninPopup *GDriveManager::getCurrentSigninPopup()
+{
+    return m_currentSigninPopup;
+}
+
 void GDriveManager::clearMetadata()
 {
     auto map = getMetadataMap();

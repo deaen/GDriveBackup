@@ -21,10 +21,10 @@ bool GDriveLoadLayer::init()
     this->setID("loading-layer"_spr);
     this->setKeypadEnabled(false);
 
-    /* menu */
+    /* Menu */
     m_menu = CCMenu::create();
     m_menu->setContentSize(this->getContentSize());
-    m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAxisAlignment(AxisAlignment::Center));
+    m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAxisAlignment(AxisAlignment::Center)->setGap(5.f));
     m_menu->setID("menu"_spr);
 
     /* Status Message */
@@ -32,7 +32,7 @@ bool GDriveLoadLayer::init()
     m_statusMessage->setID("status-message"_spr);
     m_menu->addChild(m_statusMessage);
 
-    /* Status Percentage*/
+    /* Status Percentage */
     m_statusPercentage = CCLabelBMFont::create("0% (0/0MB)", "goldFont.fnt");
     m_statusPercentage->setID("status-percentage"_spr);
     m_statusPercentage->setLayoutOptions(AxisLayoutOptions::create()->setPrevGap(10.f)->setRelativeScale(0.6f));

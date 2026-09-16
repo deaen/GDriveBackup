@@ -1,9 +1,7 @@
 #include "GDriveSigninPopup.hpp"
-
-#include <ctime>
-
 #include "GDriveManager.hpp"
 #include "GDrivePopup.hpp"
+#include <ctime>
 
 GDriveSigninPopup *GDriveSigninPopup::create()
 {
@@ -33,27 +31,26 @@ bool GDriveSigninPopup::init()
                                  ->setGap(0)
                                  ->setAutoScale(true));
     m_popupColumn->setContentSize({m_mainLayer->getContentWidth() - 5.f, m_mainLayer->getContentHeight() - 30.f});
-    // m_popupColumn->setAnchorPoint({0.5f, 0.5});
     m_popupColumn->setID("popup-column"_spr);
 
-    /* title */
+    /* Title */
     m_title = CCLabelBMFont::create("GDrive Backup Setup", "goldFont.fnt", m_popupColumn->getContentWidth());
     m_title->setID("title"_spr);
     m_popupColumn->addChild(m_title);
 
-    /*Description label*/
+    /* Description label */
     m_description = CCLabelBMFont::create("Welcome to GDrive Backup!\nPlease click the button below to open the browser and sign in!", "chatFont.fnt", m_popupColumn->getContentWidth() - 30.f, CCTextAlignment::kCCTextAlignmentCenter);
     m_description->setID("description"_spr);
     m_popupColumn->addChild(m_description);
 
-    /*Anchored Buttons Menu */
+    /* Anchored Buttons Menu */
     m_buttonMenu = CCMenu::create();
     m_buttonMenu->setContentWidth(m_mainLayer->getContentWidth());
     m_buttonMenu->setID("button-menu"_spr);
     m_buttonMenu->setAnchorPoint({0.5f, 0.5f});
     m_buttonMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::Center)->setGap(15.f));
 
-    /* button z*/
+    /* Button Z... */
     m_signinButton = CCMenuItemSpriteExtra::create(ButtonSprite::create("Sign in"), this, menu_selector(GDriveSigninPopup::onSignin));
     m_signinButton->setID("signin-button"_spr);
     m_buttonMenu->addChild(m_signinButton);
@@ -83,6 +80,7 @@ bool GDriveSigninPopup::init()
         Mod::get()->getSaveContainer().erase("temp-timestamp");
     }
 
+    Mod::get()->setSavedValue<bool>("new-user", true);
     return true;
 }
 
@@ -107,9 +105,6 @@ void GDriveSigninPopup::onSignin(CCObject *sender)
 {
     showLoading();
     GDriveManager::getInstance()->signin();
-}
-void GDriveSigninPopup::onTitle(CCObject *sender)
-{
 }
 
 void GDriveSigninPopup::onVerify(CCObject *sender)

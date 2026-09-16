@@ -11,11 +11,11 @@ class GDrivePopup : public Popup
 
     GDriveLoadLayer *showLoadLayer();
     void hideLoadLayer();
-    
+
   private:
     bool init() override;
     void onExitTransitionDidStart() override;
-    
+
     void onToggleAccountVisibility(CCObject *sender);
     void onNameInfo(CCObject *sender);
     void onSizeInfo(CCObject *sender);
@@ -27,7 +27,6 @@ class GDrivePopup : public Popup
 
     void setupEmail();
     void showSlotPage(int pageNumber);
-    
 
     static constexpr int m_slotsPerPage = 3;
     int m_maxSlotPage = 0;
@@ -49,4 +48,7 @@ class GDrivePopup : public Popup
     bool m_emailVisible = true;
 
     bool m_editMode = false;
+
+    static constexpr float popupWidth = 470.f;
+    static constexpr float popupHeight = 255.f;
 };
