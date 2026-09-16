@@ -156,7 +156,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
     m_deleteButton->setVisible(false);
     m_editSpinner->setVisible(false);
     m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between));
-    
+
     /* Add children to m_menu */
     m_menu->addChild(m_slotTitle);
     m_menu->addChild(m_infoRow);
@@ -235,12 +235,6 @@ void GDriveSlotBox::updateStatus()
     {
         setMetadataStatus(true);
 
-        if (getEditMode())
-        {
-            setShouldEditMode(true);
-            setEditMode(true);
-        }
-
         auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
         if (metadataMap && !metadataMap->contains(getSlot()) && GDriveManager::getInstance()->getMetadataStatus())
         {
@@ -256,6 +250,12 @@ void GDriveSlotBox::updateStatus()
             auto action = CCRepeatForever::create(CCSequence::createWithTwoActions(CCFadeTo::create(duration, 55), CCFadeTo::create(duration, 255)));
             action->setTag(1);
             m_slotTitle->getInputNode()->getTextLabel()->runAction(action);
+        }
+
+        if (getEditMode())
+        {
+            setShouldEditMode(true);
+            setEditMode(true);
         }
     }
 }
@@ -341,6 +341,9 @@ void GDriveSlotBox::onDelete(CCObject *sender)
                             if (ok)
                             {
                                 Notification::create(fmt::format("Save {} successfully deleted", getSlot()), NotificationIcon::Success, 3.f)->show();
+                                auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
+                                if (metadataMap && metadataMap->contains(getSlot()))
+                                    metadataMap->erase(getSlot());
                                 updateStatus();
                             }
                         });
@@ -421,9 +424,15 @@ void GDriveSlotBox::updateInfo()
     auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
     if (metadataMap && metadataMap->contains(getSlot()))
     {
+        setMetadataStatus(false);
         m_savedTimestamp = utils::numFromString<time_t>(metadataMap->at(getSlot())["timestamp"]).unwrapOrDefault();
         m_savedSize = utils::numFromString<size_t>(metadataMap->at(getSlot())["size"]).unwrapOrDefault();
         m_savedDescription = metadataMap->at(getSlot())["description"];
+    }
+    else{
+        m_savedTimestamp = 0;
+        m_savedSize = 0;
+        m_savedDescription = "";
     }
 
     if (m_savedSize == 0)
@@ -455,6 +464,7 @@ void GDriveSlotBox::updateInfo()
             m_slotTitle->setString(fmt::format("Slot {}", getSlot()));
         else
             m_slotTitle->setString(m_savedDescription);
+        m_empty = false;
     }
 
     m_slotTitle->getInputNode()->getTextLabel()->stopActionByTag(1);
@@ -549,7 +559,6 @@ void GDriveSlotBox::loadMetadata()
     if (GDriveManager::getInstance()->checkStatus(this) == GDriveManager::Status::Idle)
     {
         setStatusVisiblity(false);
-        setMetadataStatus(false);
         updateInfo();
 
         if (getShouldEditMode())

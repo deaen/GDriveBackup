@@ -920,7 +920,7 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
     co_return sizeDataMap;
 }
 
-arc::Future<bool> GDriveManager::getMetadata2()
+arc::Future<bool> GDriveManager::getMetadata()
 {
     m_gettingMetadata = true;
 
@@ -1052,7 +1052,6 @@ arc::Future<bool> GDriveManager::deleteFile(const int slot)
         });
         co_return false;
     }
-
     co_return true;
 }
 

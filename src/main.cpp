@@ -1,11 +1,28 @@
+#include "GDrivePopup.hpp"
 #include <Geode/Geode.hpp>
 #include <Geode/modify/AccountLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
-#include "GDrivePopup.hpp"
 
 using namespace geode::prelude;
 
-class $modify(GDriveMenuLayer, MenuLayer)
+struct GDriveMain
+{
+    void onButton(CCObject *)
+    {
+        GDrivePopup::create();
+        /* Update popup */
+        if (!Mod::get()->setSavedValue("shown-v1.3.0-popup", true) && !Mod::get()->getSavedValue<bool>("new-user", false))
+        {
+            FLAlertLayer::create(
+                "update v1.3.0",
+                "new update!! check it out:\n- <cy>New Edit mode!</c>\n- <cy> New size information menu!</c>\n- <cy>New drive icon option!</c>\n- <cy>Lots of bug fixes & optimizations!</c>\n thank you for using this mod! :D",
+                "Okay")
+                ->show();
+        }
+    }
+};
+
+class $modify(MenuLayer)
 {
 
     $override bool init()
@@ -19,7 +36,7 @@ class $modify(GDriveMenuLayer, MenuLayer)
         /* Main Menu GDrive Button */
         if (auto menu = this->getChildByID("bottom-menu"))
         {
-            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Green, CircleBaseSize::MediumAlt), this, menu_selector(GDriveMenuLayer::onGDriveButton));
+            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Green, CircleBaseSize::MediumAlt), this, menu_selector(GDriveMain::onButton));
             gdriveButton->setID("gdrive-bottom-button"_spr);
             menu->addChild(gdriveButton);
             menu->updateLayout();
@@ -27,14 +44,9 @@ class $modify(GDriveMenuLayer, MenuLayer)
 
         return true;
     }
-
-    void onGDriveButton(CCObject *)
-    {
-        GDrivePopup::create();
-    }
 };
 
-class $modify(GDriveAccountLayer, AccountLayer)
+class $modify(AccountLayer)
 {
 
     $override void customSetup()
@@ -45,7 +57,7 @@ class $modify(GDriveAccountLayer, AccountLayer)
 
         if (auto menu = CCMenu::create())
         {
-            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Pink, CircleBaseSize::BigAlt), this, menu_selector(GDriveAccountLayer::onGDriveButton));
+            auto gdriveButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::createWithSprite((Mod::get()->getSettingValue<bool>("new-icon")) ? "iconNew.png"_spr : "icon.png"_spr, 1.f, CircleBaseColor::Pink, CircleBaseSize::BigAlt), this, menu_selector(GDriveMain::onButton));
             gdriveButton->setID("gdrive-button"_spr);
 
             menu->setContentSize(gdriveButton->getScaledContentSize());
@@ -89,9 +101,5 @@ class $modify(GDriveAccountLayer, AccountLayer)
             if (m_mainLayer)
                 m_mainLayer->addChild(menu);
         }
-    }
-    void onGDriveButton(CCObject *)
-    {
-        GDrivePopup::create();
     }
 };

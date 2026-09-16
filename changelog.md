@@ -1,3 +1,9 @@
+# v1.3.0
+- <cy>New Edit mode!</c> the ability to <cr>**delete**</c> saves!
+- <cy> New size information menu!</c> shows you a complete breakdown of your save files across all your accounts!
+- <cy>New drive icon option!</c> If you want to!
+- Lots of bug fixes & optimizations!
+
 # 1.2.1
 - added the option to change the mod's button position in the account menu!
 

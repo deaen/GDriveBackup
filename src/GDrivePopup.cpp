@@ -72,7 +72,7 @@ bool GDrivePopup::init()
     nameInfoButton->setID("name-info-button"_spr);
     nameRow->addChild(nameInfoButton);
 
-    nameRow->setLayout(RowLayout::create()->setAutoScale(false)->setAxisAlignment(AxisAlignment::Center)->setCrossAxisLineAlignment(AxisAlignment::End));
+    nameRow->setLayout(RowLayout::create()->setAutoScale(false)->setAxisAlignment(AxisAlignment::Center)->setCrossAxisLineAlignment(AxisAlignment::End)->setGap(0.f));
     popupColumn->addChild(nameRow);
 
     /* Slot Row */
@@ -100,14 +100,14 @@ bool GDrivePopup::init()
     m_rightArrowButton->setID("right-arrow-button"_spr);
     m_buttonMenu->addChildAtPosition(m_rightArrowButton, Anchor::Right, {-(m_rightArrowButton->getContentWidth() / 2) - 7.f, -13.f});
 
-            /* Page Button Row */
+    /* Page Button Row */
     m_pageButtonsRow = CCMenu::create();
     m_pageButtonsRow->setContentWidth(popupColumn->getContentWidth());
     m_pageButtonsRow->setAnchorPoint({0.5f, 0.5f});
     m_pageButtonsRow->setID("page-button-row"_spr);
     
     /* Slot & metadata setup */
-    async::spawn(GDriveManager::getInstance()->getMetadata2(), [this](bool gotData) {
+    async::spawn(GDriveManager::getInstance()->getMetadata(), [this](bool gotData) {
         for (const auto &box : m_slotBoxes)
         {
             if (box)
@@ -195,7 +195,6 @@ bool GDrivePopup::init()
     bottomRightMenu->addChild(modSettingsButton);
 
     bottomRightMenu->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(3.f));
- 
     return true;
 }
 
