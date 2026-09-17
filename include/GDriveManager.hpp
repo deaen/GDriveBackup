@@ -21,6 +21,7 @@ class GDriveManager : public cocos2d::CCObject
     void signout(bool openAgain);
 
     void saveData(const int slot);
+    void loadMetadata(const int slot);
     void loadData(const int slot);
 
     arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByAccountiD, const std::string accountiD = "", const std::string parentID = "");
@@ -79,6 +80,10 @@ class GDriveManager : public cocos2d::CCObject
     bool getMetadataStatus();
     metadata_map *getMetadataMap();
     void clearMetadata();
+
+    async::TaskHolder<bool> *getMetadataListner();
+    async::TaskHolder<std::string> *getEmailListner();
+
     std::string m_androidID;
 
   private:
@@ -92,6 +97,8 @@ class GDriveManager : public cocos2d::CCObject
 
     async::TaskHolder<bool> m_saveListener;
     async::TaskHolder<bool> m_loadListener;
+    async::TaskHolder<bool> m_metadataListener;
+    async::TaskHolder<std::string> m_emailListener;
 
     std::map<int, GDriveSlotBox *> m_saveQueue;
 

@@ -107,7 +107,7 @@ bool GDrivePopup::init()
     m_pageButtonsRow->setID("page-button-row"_spr);
     
     /* Slot & metadata setup */
-    async::spawn(GDriveManager::getInstance()->getMetadata(), [this](bool gotData) {
+    GDriveManager::getInstance()->getMetadataListner()->spawn(GDriveManager::getInstance()->getMetadata(), [this](bool gotData) {
         for (const auto &box : m_slotBoxes)
         {
             if (box)
@@ -269,7 +269,7 @@ void GDrivePopup::setupEmail()
     spinner->setID("email-spinner"_spr);
     m_mainLayer->addChildAtPosition(spinner, Anchor::Bottom, {0, 16.f});
 
-    async::spawn(GDriveManager::getInstance()->getEmail(), [this, spinner](std::string email) {
+    GDriveManager::getInstance()->getEmailListner()->spawn(GDriveManager::getInstance()->getEmail(), [this, spinner](std::string email) {
         spinner->setVisible(false);
         if (email.empty())
             return;

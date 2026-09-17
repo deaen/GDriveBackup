@@ -18,6 +18,8 @@ GDriveManager::GDriveManager()
 {
     m_saveListener.setName("gdrive-save-listener");
     m_loadListener.setName("gdrive-load-listener");
+    m_metadataListener.setName("gdrive-metadata-listener");
+    m_loadListener.setName("gdrive-email-listener");
 
 /* Get the android hardware ID and store in here to avoid all the threading nonsense */
 #ifdef GEODE_IS_ANDROID
@@ -136,6 +138,8 @@ void GDriveManager::signout(const bool openAgain)
 {
     m_saveListener.cancel();
     m_loadListener.cancel();
+    m_metadataListener.cancel();
+    m_emailListener.cancel();
     m_saveQueue.clear();
 
     if (m_currentPopup)
@@ -1286,6 +1290,8 @@ metadata_map *GDriveManager::getMetadataMap()
 
 void GDriveManager::setCurrentPopup(GDrivePopup *popup)
 {
+    m_metadataListener.cancel();
+    m_emailListener.cancel();
     GDriveManager::getInstance()->clearMetadata();
     m_currentPopup = popup;
 }
@@ -1310,3 +1316,13 @@ void GDriveManager::clearMetadata()
     if (map)
         map->clear();
 }
+
+geode::async::TaskHolder<bool> *GDriveManager::getMetadataListner()
+{
+    return &m_metadataListener;
+};
+
+geode::async::TaskHolder<std::string> *GDriveManager::getEmailListner()
+{
+    return &m_emailListener;
+};
