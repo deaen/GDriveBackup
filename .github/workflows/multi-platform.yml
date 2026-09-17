@@ -39,11 +39,11 @@ jobs:
       - name: Build the mod
         uses: geode-sdk/build-geode-mod@main
         with:
+          combine: true
           build-config: RelWithDebInfo
           export-pdb: true
           bundle-pdb: true
           target: ${{ matrix.config.target }}
-          
 
   package:
     name: Package builds
