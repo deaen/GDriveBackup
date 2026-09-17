@@ -18,6 +18,10 @@ jobs:
         - name: macOS
           os: macos-latest
 
+        - name: iOS
+          os: macos-latest
+          target: iOS
+
         - name: Android32
           os: ubuntu-latest
           target: Android32
@@ -26,21 +30,20 @@ jobs:
           os: ubuntu-latest
           target: Android64
 
-        - name: iOS
-          os: macos-latest
-          target: iOS
-
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build the mod
         uses: geode-sdk/build-geode-mod@main
         with:
-          combine: true
+          build-config: RelWithDebInfo
+          export-pdb: true
+          bundle-pdb: true
           target: ${{ matrix.config.target }}
+          
 
   package:
     name: Package builds
