@@ -1099,8 +1099,12 @@ arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevision
 
 arc::Future<std::string> GDriveManager::getRefreshToken()
 {
-    auto refreshToken = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("refresh_token"));
-    if (refreshToken.empty())
+    std::optional<std::string> refreshToken = co_await async::waitForMainThread<std::string>([] {
+        auto refreshToken = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("refresh_token"));
+        return refreshToken;
+    });
+
+    if (!refreshToken || (refreshToken && (*refreshToken).empty()))
     {
         co_await waitForMainThread([this] {
             signout(false);
@@ -1108,14 +1112,21 @@ arc::Future<std::string> GDriveManager::getRefreshToken()
         });
     }
 
-    co_return refreshToken;
+    if (refreshToken)
+        co_return *refreshToken;
+
+    co_return "";
 }
 
 arc::Future<std::string> GDriveManager::getAccessToken()
 {
-    auto token = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
-    if ((!token.empty()) && Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr))
-        co_return token;
+    std::optional<std::string> token = co_await async::waitForMainThread<std::string>([] {
+        auto token = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
+        return token;
+    });
+
+    if ((token && !(*token).empty()) && (Mod::get()->getSavedValue<time_t>("access_expires_at") > std::time(nullptr)))
+        co_return *token;
 
     /* Create request */
     auto req = web::WebRequest();
@@ -1129,14 +1140,24 @@ arc::Future<std::string> GDriveManager::getAccessToken()
         auto expires_at = res.json().unwrapOrDefault().get<time_t>("expires_in").unwrapOrDefault();
         if (token != "" && expires_at != 0)
         {
-            Mod::get()->setSavedValue<EncStr>("access_token", GDriveEncrypt::create()->encryptString(token));
+            co_await async::waitForMainThread<void>([token] {
+                Mod::get()->setSavedValue<EncStr>("access_token", GDriveEncrypt::create()->encryptString(token));
+            });
             Mod::get()->setSavedValue<time_t>("access_expires_at", std::time(nullptr) + expires_at);
         }
     }
     else
         log::warn("{}", res.string());
 
-    co_return GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
+    token = co_await async::waitForMainThread<std::string>([] {
+        auto token = GDriveEncrypt::create()->decryptString(Mod::get()->getSavedValue<EncStr>("access_token"));
+        return token;
+    });
+
+    if (token)
+        co_return *token;
+    else
+        co_return "";
 }
 
 arc::Future<std::string> GDriveManager::getEmail()

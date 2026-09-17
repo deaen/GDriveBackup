@@ -556,7 +556,8 @@ float GDriveSlotBox::getCalculatedScale(float childWidth, float childScale)
 
 void GDriveSlotBox::loadMetadata()
 {
-    if (GDriveManager::getInstance()->checkStatus(this) == GDriveManager::Status::Idle)
+    auto saveStatus = GDriveManager::getInstance()->checkStatus(this);
+    if (saveStatus == GDriveManager::Status::Idle)
     {
         setStatusVisiblity(false);
         updateInfo();

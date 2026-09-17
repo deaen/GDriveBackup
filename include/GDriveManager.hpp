@@ -21,7 +21,6 @@ class GDriveManager : public cocos2d::CCObject
     void signout(bool openAgain);
 
     void saveData(const int slot);
-    void loadMetadata(const int slot);
     void loadData(const int slot);
 
     arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByAccountiD, const std::string accountiD = "", const std::string parentID = "");
@@ -30,7 +29,7 @@ class GDriveManager : public cocos2d::CCObject
     arc::Future<std::optional<std::string>> getMainFolderID(const bool autoCreate = true);
     arc::Future<std::optional<std::string>> getUserFolderID(const bool autoCreate = true);
     arc::Future<std::optional<std::string>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
-    arc::Future<bool> getMetadata(); // rename this to get metadata later and the other one to like loadMetadataOrMaybeYouWontEvenNeedItWhoKnows
+    arc::Future<bool> getMetadata();
     arc::Future<bool> setDescription(const std::string description, const int slot);
     arc::Future<bool> deleteFile(const int slot);
     arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
