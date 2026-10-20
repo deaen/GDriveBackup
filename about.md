@@ -7,6 +7,8 @@
 - **Infinite save slots!**
 - **Unique slots for each GD account!**
 - **Super simple Google Sign in!**
+- **Custom slot descriptions!**
+- **Detailed save breakdowns!**
 
 ##### you can find the mod in the account menu in GD's settings!
 ---
