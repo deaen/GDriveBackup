@@ -31,19 +31,6 @@
 		]
 	},
 	"settings": {
-		"signout-button": {
-			"type": "custom:signout-button"
-		},
-		"backup-title": {
-			"type": "title",
-			"name": "Backup Settings"
-		},
-		"load-game-options": {
-			"type": "bool",
-			"default": false,
-			"name": "Load game & editor options",
-			"description": "Enable loading your saved game & editor options (e.g. quick keys, CBS, button rows, link controls, etc.) <cr>Note:</c> This doesn't restore every single option, mainly excludes graphics options."
-		},
 		"ui-title": {
 			"type": "title",
 			"name": "UI Settings"
@@ -88,6 +75,44 @@
 			"name": "Use new Drive icon",
 			"description": "Use the new weird gradient-y google drive icon for the buttons instead of the 'lame' 'old' 'one'",
 			"default": false
+		},
+		"advanced-title": {
+			"type": "title",
+			"name": "Advanced Settings"
+		},
+		"save-gm": {
+			"type": "bool",
+			"default": true,
+			"name": "Save Game Data",
+			"description": "Include CCGameManager.dat in backups",
+			"enable-if": "d"
+		},
+		"save-llm": {
+			"type": "bool",
+			"default": true,
+			"name": "Save Local Levels Data",
+			"description": "Include CCLocalLevels.dat in backups"
+		},
+		"load-gm": {
+			"type": "bool",
+			"default": true,
+			"name": "Load Game data",
+			"description": "Load CCGameManager.dat when loading backups"
+		},
+		"load-llm": {
+			"type": "bool",
+			"default": true,
+			"name": "load Local Levels Data",
+			"description": "Load CCLocalLevels.dat when loading backups"
+		},
+		"load-game-options": {
+			"type": "bool",
+			"default": false,
+			"name": "Load game & editor options",
+			"description": "Enable loading your saved game & editor options (e.g. quick keys, CBS, button rows, link controls, etc.). <cy>This doesn't restore every single option, and mainly excludes graphics options.</c>"
+		},
+		"signout-button": {
+			"type": "custom:signout-button"
 		}
 	},
 	"tags": [

@@ -24,16 +24,16 @@ class GDriveManager : public cocos2d::CCObject
     void loadMetadata(const int slot);
     void loadData(const int slot);
 
-    arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByAccountiD, const std::string accountiD = "", const std::string parentID = "");
-    arc::Future<std::optional<std::string>> createFolder(const std::string name, const std::string accountiD = "", const std::string parentID = "");
-    arc::Future<bool> renameFolder(const std::string fileID, const std::string name, const std::string accountiD);
+    arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByaccountID, const std::string accountID = "", const std::string parentID = "");
+    arc::Future<std::optional<std::string>> createFolder(const std::string name, const std::string accountID = "", const std::string parentID = "");
+    arc::Future<bool> renameFolder(const std::string fileID, const std::string name, const std::string accountID);
     arc::Future<std::optional<std::string>> getMainFolderID(const bool autoCreate = true);
     arc::Future<std::optional<std::string>> getUserFolderID(const bool autoCreate = true);
     arc::Future<std::optional<std::string>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
     arc::Future<bool> getMetadata();
     arc::Future<bool> setDescription(const std::string description, const int slot);
     arc::Future<bool> deleteFile(const int slot);
-    arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
+    arc::Future<bool> uploadSave(const int slot, web::WebRequest responseReq, const std::string_view GMData = "", const std::string_view LLMData = "");
     arc::Future<bool> loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer);
     arc::Future<std::optional<sizedata_map>> getSizeInfo();
 

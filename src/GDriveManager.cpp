@@ -153,14 +153,14 @@ void GDriveManager::signout(const bool openAgain)
         GDrivePopup::create();
 }
 
-arc::Future<std::optional<std::string>> GDriveManager::findFolder(const std::string name, const bool findByAccountID, const std::string accountID, const std::string parentID)
+arc::Future<std::optional<std::string>> GDriveManager::findFolder(const std::string name, const bool findByaccountID, const std::string accountID, const std::string parentID)
 {
     auto req = web::WebRequest();
     req.header("Authorization", fmt::format("Bearer {}", co_await getAccessToken()));
 
     std::string query = "trashed = false and mimeType = 'application/vnd.google-apps.folder'";
 
-    if (findByAccountID)
+    if (findByaccountID)
         query += " and appProperties has { key='accountID' " + fmt::format("and value='{}'", accountID) + " }";
     else
         query += fmt::format(" and name = '{}'", name);
@@ -239,10 +239,10 @@ arc::Future<bool> GDriveManager::renameFolder(const std::string fileID, const st
 arc::Future<std::optional<std::string>> GDriveManager::getMainFolderID(const bool autoCreate)
 {
     std::string gdriveFolderName = "GDrive Backup";
-    std::string gdriveAccountID = "gdriveMainFolder";
+    std::string gdriveaccountID = "gdriveMainFolder";
 
     // find big gdrive
-    auto gdriveFolderID = co_await findFolder(gdriveFolderName, true, gdriveAccountID);
+    auto gdriveFolderID = co_await findFolder(gdriveFolderName, true, gdriveaccountID);
 
     if (!gdriveFolderID)
     {
@@ -250,7 +250,7 @@ arc::Future<std::optional<std::string>> GDriveManager::getMainFolderID(const boo
         auto oldGDriveFolderID = co_await findFolder(gdriveFolderName, false);
         if (oldGDriveFolderID)
         {
-            if (co_await renameFolder(*oldGDriveFolderID, gdriveFolderName, gdriveAccountID))
+            if (co_await renameFolder(*oldGDriveFolderID, gdriveFolderName, gdriveaccountID))
                 gdriveFolderID = *oldGDriveFolderID;
         }
         // else just create
@@ -266,7 +266,7 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
     std::string gdriveFolderName = "GDrive Backup";
     std::string userFolderName = fmt::format("{}'s saves", GJAccountManager::sharedState()->m_username);
     std::string accountID = std::to_string(GJAccountManager::sharedState()->m_accountID);
-    std::string gdriveAccountID = "gdriveMainFolder";
+    std::string gdriveaccountID = "gdriveMainFolder";
     if (userFolderName == "'s saves")
         userFolderName = "Unregistered saves";
 
@@ -394,7 +394,9 @@ void GDriveManager::saveData(const int slot)
             m_saveQueue[slot]->setStatusPercentage(m_saveProgress + p.uploaded());
     });
 
-    m_saveListener.spawn(saveString(static_cast<std::string>(GameManager::sharedState()->getCompressedSaveString()) + "|" + static_cast<std::string>(LocalLevelManager::sharedState()->getCompressedSaveString()), slot, req), [this, slot](bool ok) {
+    gd::string GMData = (Mod::get()->getSettingValue<bool>("save-gm")) ? GameManager::sharedState()->getCompressedSaveString() : "";
+    gd::string LLMData = (Mod::get()->getSettingValue<bool>("save-llm")) ? LocalLevelManager::sharedState()->getCompressedSaveString() : "";
+    m_saveListener.spawn(uploadSave(slot, req, GMData, LLMData), [this, slot](bool ok) {
         if (m_saveQueue[slot])
         {
             m_saveQueue[slot]->setStatusVisiblity(false);
@@ -433,15 +435,33 @@ void GDriveManager::loadData(const int slot)
     });
 }
 
-arc::Future<bool> GDriveManager::saveString(const std::string data, const int slot, web::WebRequest responseReq)
+arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest responseReq, const std::string_view GMData, const std::string_view LLMData)
 {
+    auto zipResult = file::Zip::create(dirs::getSaveDir().append("Helps.zip"));
+    if (zipResult.isErr())
+    {
+        co_await waitForMainThread([this] {
+            showError("Couldn't create save zip,", "please try again", false);
+        });
+        co_return false;
+    }
+    auto zip = std::move(zipResult).unwrap();
+    
+    auto addGM = (Mod::get()->getSettingValue<bool>("save-gm")) ? zip.add("CCGameManager.dat", GMData).isOk() : true;
+    auto addLLM = (Mod::get()->getSettingValue<bool>("save-llm")) ? zip.add("CCLocalLevels.dat", LLMData).isOk() : true;
+
+    if(addGM && addLLM) log::debug("{} {}", addGM, addLLM);
+    /////////////////////////////////////////////////////////////////
+    co_return false;
+    /////////////////////////////////////////////////////////////////
     co_await waitForMainThread([slot, this] {
         if (m_saveQueue[slot])
             m_saveQueue[slot]->setStatusMessage("Preparing...");
     });
 
     m_saveProgress = 0;
-    m_saveTotal = data.size();
+    auto finalString = GMData;
+    m_saveTotal = GMData.size() + LLMData.size();
     std::string resumableURL;
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = co_await getUserFolderID(true);
@@ -462,7 +482,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         req.param("uploadType", "resumable");
         req.header("Authorization", fmt::format("Bearer {}", token));
 
-        req.header("X-Upload-Content-Length", std::to_string(data.size()));
+        req.header("X-Upload-Content-Length", std::to_string(m_saveTotal));
         req.header("Content-Type", "application/json; charset=UTF-8");
 
         web::WebResponse res;
@@ -497,7 +517,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         }
     }
 
-    co_await waitForMainThread([&data, this, slot] {
+    co_await waitForMainThread([this, slot] {
         if (m_saveQueue[slot])
         {
             m_saveQueue[slot]->setStatusMessage("Saving...");
@@ -511,16 +531,16 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
         web::WebResponse res;
         int retries = 0;
         size_t i = 0;
-        while (i < data.size())
+        while (i < m_saveTotal)
         {
-            size_t currentSize = std::min(m_chunkSize, data.size() - i);
+            size_t currentSize = std::min(m_chunkSize, m_saveTotal - i);
             m_saveProgress = i;
 
-            responseReq.body(ByteVector(data.data() + i, data.data() + i + currentSize));
+            responseReq.body(ByteVector(finalString.data() + i, finalString.data() + i + currentSize));
             responseReq.removeHeader("content-length");
             responseReq.removeHeader("content-range");
             responseReq.header("content-length", std::to_string(currentSize));
-            responseReq.header("content-range", fmt::format("bytes {}-{}/{}", i, i + currentSize - 1, data.size()));
+            responseReq.header("content-range", fmt::format("bytes {}-{}/{}", i, i + currentSize - 1, m_saveTotal));
             res = co_await responseReq.put(resumableURL);
 
             if (res.ok())
@@ -568,7 +588,7 @@ arc::Future<bool> GDriveManager::saveString(const std::string data, const int sl
     }
 
     m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
-    m_metadataMap[slot]["size"] = std::to_string(data.size());
+    m_metadataMap[slot]["size"] = std::to_string(m_saveTotal);
 
     co_return true;
 }

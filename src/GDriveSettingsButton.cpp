@@ -53,7 +53,7 @@ class GDriveSettingsButtonNode : public SettingNodeV3
             return false;
 
         getNameLabel()->setVisible(false);
-        m_signinButtonSprite = ButtonSprite::create("Sign Out", "goldFont.fnt", "GJ_button_01.png");
+        m_signinButtonSprite = ButtonSprite::create("Sign Out", "goldFont.fnt", "GJ_button_06.png");
         m_signinButtonSprite->setScale(.7f);
         m_signinButton = CCMenuItemSpriteExtra::create(m_signinButtonSprite, this, menu_selector(GDriveSettingsButtonNode::onSigninButton));
 
