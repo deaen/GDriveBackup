@@ -28,12 +28,12 @@ bool GDriveLoadLayer::init()
     m_menu->setID("menu"_spr);
 
     /* Status Message */
-    m_statusMessage = CCLabelBMFont::create("Preparing...", "goldFont.fnt");
+    m_statusMessage = CCLabelBMFont::create("please wait...", "goldFont.fnt");
     m_statusMessage->setID("status-message"_spr);
     m_menu->addChild(m_statusMessage);
 
     /* Status Percentage */
-    m_statusPercentage = CCLabelBMFont::create("0% (0/0MB)", "goldFont.fnt");
+    m_statusPercentage = CCLabelBMFont::create("please wait...", "goldFont.fnt");
     m_statusPercentage->setID("status-percentage"_spr);
     m_statusPercentage->setLayoutOptions(AxisLayoutOptions::create()->setPrevGap(10.f)->setRelativeScale(0.6f));
     m_statusPercentage->setVisible(false);

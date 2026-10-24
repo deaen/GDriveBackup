@@ -2,6 +2,7 @@
 #include "GDriveEncrypt.hpp"
 #include <Geode/binding/LocalLevelManager.hpp>
 #include <Geode/utils/base64.hpp>
+#include <asp/fs/fs.hpp>
 #include <ctime>
 
 #ifdef GEODE_IS_ANDROID
@@ -46,15 +47,24 @@ GDriveManager::GDriveManager()
 #endif
 }
 
-void GDriveManager::showError(const std::string_view title, const std::string_view error, const bool invasive)
+void GDriveManager::showError(const std::string_view title, const std::string_view error, const bool invasive, const bool includeDefaultBody)
 {
     if (invasive)
     {
-        std::string body = "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your  <cl>internet connection</c>.\nIf this keeps happening, please report the issue to the developer.";
-        if (error != "")
-            body += fmt::format("\n <cr>{}</c>", error);
+        std::string body;
 
-        FLAlertLayer::create(fmt::format("{} Error", title).c_str(), body, "OK")->show();
+        if (includeDefaultBody)
+        {
+            body += "<cg>GDriveBackup</c> has encountered an unexpected <cr>error</c>, please check your  <cl>internet connection</c>.\nIf this keeps happening, please report the issue to the developer.";
+            if (error != "")
+                body += fmt::format("\n <cr>{}</c>", error);
+        }
+        else
+        {
+            body = error;
+        }
+
+        FLAlertLayer::create((includeDefaultBody) ? fmt::format("{} Error", title).c_str() : fmt::format("{}", title).c_str(), body, "OK")->show();
     }
     else
         Notification::create(fmt::format("GDrive Backup: {} {}", title, error), NotificationIcon::Error, 5.f)->show();
@@ -264,9 +274,15 @@ arc::Future<std::optional<std::string>> GDriveManager::getMainFolderID(const boo
 arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const bool autoCreate)
 {
     std::string gdriveFolderName = "GDrive Backup";
-    std::string userFolderName = fmt::format("{}'s saves", GJAccountManager::sharedState()->m_username);
-    std::string accountID = std::to_string(GJAccountManager::sharedState()->m_accountID);
+    std::string userFolderName;
+    std::string accountID;
     std::string gdriveaccountID = "gdriveMainFolder";
+
+    co_await waitForMainThread([&userFolderName, &accountID] {
+        userFolderName = fmt::format("{}'s saves", GJAccountManager::sharedState()->m_username);
+        accountID = std::to_string(GJAccountManager::sharedState()->m_accountID);
+    });
+
     if (userFolderName == "'s saves")
         userFolderName = "Unregistered saves";
 
@@ -301,65 +317,39 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
     co_return std::nullopt;
 }
 
-arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
+arc::Future<std::optional<std::pair<std::string, GDriveManager::slotType>>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
 {
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = (defparentID.empty()) ? co_await getUserFolderID(autoCreateFolder) : defparentID;
 
-    if (!parentID)
-    {
-        if (visibleError)
-            co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
-    }
-    else
+    if (parentID)
     {
         auto req = web::WebRequest();
-        web::WebResponse res;
         req.header("Authorization", fmt::format("Bearer {}", token));
+        web::WebResponse res;
 
-        // look for new-style named save
-        req.param("q", fmt::format("name='save-{}' and trashed=false and '{}' in parents", slot, *parentID));
-
+        // look for file
+        req.param("q", "((appProperties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or (name='save-{}' or name='save-{}.dat')) and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
+        req.param("orderBy", "modifiedTime");
         res = co_await req.get("https://www.googleapis.com/drive/v3/files");
+
         if (res.ok())
         {
+            auto name = res.json().unwrapOrDefault()["files"][0].get<std::string>("name").unwrapOrDefault();
             auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
             if (!id.empty())
             {
-                co_return id;
+                if (name == fmt::format("slot-{}.gdbsave", slot))
+                    co_return std::make_pair(id, GDriveManager::slotType::New);
+                else
+                    co_return std::make_pair(id, GDriveManager::slotType::Old);
             }
             else
             {
-                // look for old-styled name
-                req.removeParam("q");
-                req.param("q", fmt::format("name='save-{}.dat' and trashed=false and '{}' in parents", slot, *parentID));
-                res = co_await req.get("https://www.googleapis.com/drive/v3/files");
-                if (res.ok())
-                {
-                    auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
-                    if (!id.empty())
-                    {
-                        // rename to new-styled name if found
-                        req.removeParam("q");
-                        auto body = matjson::Value();
-                        body.set("name", fmt::format("save-{}", slot));
-                        req.bodyJSON(body);
-
-                        res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", id));
-                        if (!res.ok())
-                            log::warn("File id rename error: {}", res.string());
-
-                        co_return id;
-                    }
-                }
-                else
-                {
-                    // continue
-                    if (visibleError)
-                        co_await waitForMainThread([this, slot, errStr = error] {
-                            showError(errStr.c_str(), "Valid fileID not found.", false);
-                        });
-                }
+                if (visibleError)
+                    co_await waitForMainThread([this, slot, errStr = error] {
+                        showError(errStr.c_str(), "slot save not found", false);
+                    });
             }
         }
         else
@@ -384,6 +374,12 @@ arc::Future<std::optional<std::string>> GDriveManager::getFileID(const int slot,
             }
         }
     }
+    else
+    {
+        if (visibleError)
+            co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
+    }
+
     co_return std::nullopt;
 }
 
@@ -426,7 +422,7 @@ void GDriveManager::loadData(const int slot)
             loadLayer->setPercentage(m_loadProgress + p.downloaded());
     });
 
-    m_loadListener.spawn(loadString(slot, req, loadLayer), [slot](bool ok) {
+    m_loadListener.spawn(loadSave(slot, req, loadLayer), [slot](bool ok) {
         if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
             popup->hideLoadLayer();
 
@@ -437,35 +433,15 @@ void GDriveManager::loadData(const int slot)
 
 arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest responseReq, const std::string_view GMData, const std::string_view LLMData)
 {
-    auto zipResult = file::Zip::create(dirs::getSaveDir().append("Helps.zip"));
-    if (zipResult.isErr())
-    {
-        co_await waitForMainThread([this] {
-            showError("Couldn't create save zip,", "please try again", false);
-        });
-        co_return false;
-    }
-    auto zip = std::move(zipResult).unwrap();
-    
-    auto addGM = (Mod::get()->getSettingValue<bool>("save-gm")) ? zip.add("CCGameManager.dat", GMData).isOk() : true;
-    auto addLLM = (Mod::get()->getSettingValue<bool>("save-llm")) ? zip.add("CCLocalLevels.dat", LLMData).isOk() : true;
-
-    if(addGM && addLLM) log::debug("{} {}", addGM, addLLM);
-    /////////////////////////////////////////////////////////////////
-    co_return false;
-    /////////////////////////////////////////////////////////////////
     co_await waitForMainThread([slot, this] {
         if (m_saveQueue[slot])
             m_saveQueue[slot]->setStatusMessage("Preparing...");
     });
 
-    m_saveProgress = 0;
-    auto finalString = GMData;
-    m_saveTotal = GMData.size() + LLMData.size();
     std::string resumableURL;
     std::string token = co_await getAccessToken();
-    std::optional<std::string> parentID = co_await getUserFolderID(true);
 
+    std::optional<std::string> parentID = co_await getUserFolderID(true);
     if (!parentID)
     {
         co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
@@ -474,47 +450,90 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
 
     auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot), *parentID, false);
     if (!fileID)
-        fileID = "";
+        fileID->first = "";
 
-    /* Initial request */
+    // create zip
+    const auto zipPath = Mod::get()->getSaveDir() / fmt::format("slot-{}.gdbsave", slot);
+    auto zipRes = file::Zip::create(zipPath);
+    if (!zipRes)
     {
-        auto req = web::WebRequest();
-        req.param("uploadType", "resumable");
-        req.header("Authorization", fmt::format("Bearer {}", token));
+        co_await waitForMainThread([this] {
+            showError("Couldn't create save file,", "please try again", false);
+        });
+        co_return false;
+    }
+    {
+        auto zip = std::move(zipRes).unwrap();
 
-        req.header("X-Upload-Content-Length", std::to_string(m_saveTotal));
-        req.header("Content-Type", "application/json; charset=UTF-8");
+        // Add GM & LLM — original checks preserved
+        bool GMres = (Mod::get()->getSettingValue<bool>("save-gm")) ? zip.add("CCGameManager.dat", GMData).isOk() : true;
+        bool LLMres = (Mod::get()->getSettingValue<bool>("save-llm")) ? zip.add("CCLocalLevels.dat", LLMData).isOk() : true;
 
-        web::WebResponse res;
-        if (fileID->empty())
+        if (!GMres || !LLMres)
         {
-            req.bodyJSON(matjson::makeObject({
-                {"name", fmt::format("save-{}", slot)},
-                {"parents", std::vector<matjson::Value>({*parentID})},
-            }));
-            res = co_await req.post("https://www.googleapis.com/upload/drive/v3/files");
-        }
-        else
-            res = co_await req.patch(fmt::format("https://www.googleapis.com/upload/drive/v3/files/{}", *fileID));
-
-        if (res.ok())
-        {
-            if (auto header = res.getAllHeadersNamed("location"))
-            {
-                if (!header->empty() && utils::string::contains(header->at(0), "https://"))
-                    resumableURL = header->at(0);
-            }
-        }
-        else
-            log::warn("{}", res.string());
-
-        if (resumableURL.empty())
-        {
-            co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+            co_await waitForMainThread([this] {
+                showError("Couldn't add save file(s),", "please try again", false);
             });
+            log::warn("GMres: {}\nLLMres: {}", GMres, LLMres);
+
             co_return false;
         }
+    }
+
+    auto zipDataRes = file::readBinary(zipPath);
+    if (!zipDataRes)
+    {
+        co_await waitForMainThread([this] {
+            showError("Couldn't read save file,", "please try again", false);
+        });
+        co_return false;
+    }
+
+    auto zipData = std::move(zipDataRes).unwrap();
+
+    m_saveProgress = 0;
+    m_saveTotal = zipData.size();
+
+    /* Initial request */
+    auto req = web::WebRequest();
+    req.param("uploadType", "resumable");
+    req.header("Authorization", fmt::format("Bearer {}", token));
+    req.header("X-Upload-Content-Length", std::to_string(m_saveTotal));
+    req.header("Content-Type", "application/json; charset=UTF-8");
+
+    web::WebResponse res;
+    auto reqBody = matjson::makeObject(
+        {{"name", fmt::format("slot-{}.gdbsave", slot)},
+         {"appProperties", matjson::makeObject({{"slotID", slot}})}});
+
+    if (fileID->first.empty())
+    {
+        reqBody.set("parents", std::vector<matjson::Value>({*parentID}));
+        req.bodyJSON(reqBody);
+        res = co_await req.post("https://www.googleapis.com/upload/drive/v3/files");
+    }
+    else
+    {
+        req.bodyJSON(reqBody);
+        res = co_await req.patch(fmt::format("https://www.googleapis.com/upload/drive/v3/files/{}", fileID->first));
+    }
+
+    if (res.ok())
+    {
+        if (auto header = res.getAllHeadersNamed("location"))
+        {
+            if (!header->empty() && utils::string::contains(header->at(0), "https://"))
+                resumableURL = header->at(0);
+        }
+    }
+
+    if (res.error() || resumableURL.empty())
+    {
+        log::warn("{}", res.string());
+        co_await waitForMainThread([&res, slot, this] {
+            showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+        });
+        co_return false;
     }
 
     co_await waitForMainThread([this, slot] {
@@ -526,175 +545,32 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     });
 
     /* Upload Data */
-    {
-        responseReq.header("Authorization", fmt::format("Bearer {}", token));
-        web::WebResponse res;
-        int retries = 0;
-        size_t i = 0;
-        while (i < m_saveTotal)
-        {
-            size_t currentSize = std::min(m_chunkSize, m_saveTotal - i);
-            m_saveProgress = i;
-
-            responseReq.body(ByteVector(finalString.data() + i, finalString.data() + i + currentSize));
-            responseReq.removeHeader("content-length");
-            responseReq.removeHeader("content-range");
-            responseReq.header("content-length", std::to_string(currentSize));
-            responseReq.header("content-range", fmt::format("bytes {}-{}/{}", i, i + currentSize - 1, m_saveTotal));
-            res = co_await responseReq.put(resumableURL);
-
-            if (res.ok())
-                i += currentSize;
-            else if (res.badClient())
-            {
-                // try 15 times before giving up
-                if (retries < 15)
-                {
-                    retries += 1;
-                    continue;
-                }
-                else
-                {
-                    // assume the worst.
-                    co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-                    });
-                    co_return false;
-                }
-            }
-            else
-            {
-                if (auto range = res.getAllHeadersNamed("range"))
-                {
-                    size_t r = utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back()).unwrapOrDefault();
-                    if (r == 0)
-                    {
-                        co_await waitForMainThread([&res, slot, this] {
-                            showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-                        });
-                        co_return false;
-                    }
-                    i = r + 1;
-                }
-                else
-                {
-                    co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-                    });
-                    co_return false;
-                }
-            }
-        }
-    }
-
-    m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
-    m_metadataMap[slot]["size"] = std::to_string(m_saveTotal);
-
-    co_return true;
-}
-
-arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer)
-{
-    co_await waitForMainThread([&loadLayer] {
-        if (loadLayer)
-            loadLayer->setMessage("Preparing...");
-    });
-
-    m_loadProgress = 0;
-    m_loadTotal = 0;
-    std::string token = co_await getAccessToken();
-    std::optional<std::string> parentID = co_await getUserFolderID(true);
-
-    if (!parentID)
-    {
-        co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
-        co_return false;
-    }
-
-    auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot, *parentID));
-    if (!fileID)
-        co_return false;
-
-    auto req = web::WebRequest();
-    req.header("Authorization", fmt::format("Bearer {}", token));
-
-    /* Get file size */
-    req.param("fields", "size");
-    auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
-    if (res.ok())
-    {
-        auto size = numFromString<size_t>(res.json().unwrapOrDefault().get<std::string>("size").unwrapOrDefault()).unwrapOrDefault();
-
-        if (size == 0)
-        {
-            co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} load Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
-            });
-            co_return false;
-        }
-
-        m_loadTotal = size;
-        m_metadataMap[slot]["size"] = std::to_string(size);
-    }
-    else
-        log::warn("{}", res.string());
-
-    co_await waitForMainThread([&loadLayer, this, slot] {
-        if (loadLayer)
-        {
-            loadLayer->setMessage(fmt::format("Downloading Slot {} Data...", slot));
-            loadLayer->showPercentage(m_loadTotal);
-        }
-    });
-
-    /* Download Data */
-    ByteVector buf;
-    responseReq.param("alt", "media");
     responseReq.header("Authorization", fmt::format("Bearer {}", token));
     int retries = 0;
-
     size_t i = 0;
-    while (i < m_loadTotal)
+    while (i < m_saveTotal)
     {
-        size_t currentSize = std::min(m_chunkSize, m_loadTotal - i);
-        m_loadProgress = i;
+        size_t currentSize = std::min(m_chunkSize, m_saveTotal - i);
+        m_saveProgress = i;
 
-        responseReq.removeHeader("range");
-        responseReq.header("range", fmt::format("bytes={}-{}", i, i + currentSize - 1));
-        res = co_await responseReq.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
+        const auto count = std::min(currentSize, m_saveTotal - i);
+        auto uploadBody = ByteVector(zipData.begin() + i, zipData.begin() + i + count);
+
+        responseReq.body(uploadBody);
+        responseReq.removeHeader("content-length");
+        responseReq.removeHeader("content-range");
+        responseReq.header("content-length", std::to_string(count));
+        responseReq.header("content-range", fmt::format("bytes {}-{}/{}", i, i + count - 1, m_saveTotal));
+
+        res = co_await responseReq.put(resumableURL);
 
         if (res.ok())
         {
-            buf.insert(buf.end(), res.data().begin(), res.data().end());
             i += currentSize;
-        }
-        else if (res.error())
-        {
-            if (auto range = res.getAllHeadersNamed("content-range"))
-            {
-                size_t r = utils::numFromString<size_t>(utils::string::split(utils::string::split(range->at(0), "-").back(), "/").front()).unwrapOrDefault();
-                if (r == 0)
-                {
-                    co_await waitForMainThread([&res, slot, this] {
-                        showError(fmt::format("Slot {} load Failed", slot), "Can't extract header", false);
-                    });
-                    co_return false;
-                }
-
-                buf.insert(buf.end(), res.data().begin(), res.data().end());
-                i = r + 1;
-            }
-            else
-            {
-                co_await waitForMainThread([&res, slot, this] {
-                    showError(fmt::format("Slot {} load Failed", slot), "Can't get header", false);
-                });
-                co_return false;
-            }
         }
         else if (res.badClient())
         {
-            // try a couple times before giving up ... maybe i should make this a seconds time out instead....
+            // try 15 times before giving up
             if (retries < 15)
             {
                 retries += 1;
@@ -704,158 +580,392 @@ arc::Future<bool> GDriveManager::loadString(const int slot, web::WebRequest resp
             {
                 // assume the worst.
                 co_await waitForMainThread([&res, slot, this] {
-                    showError(fmt::format("Slot {} timeout Reached", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+                    showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
                 });
+                log::warn("{}", res.string());
                 co_return false;
             }
         }
         else
         {
+            if (auto range = res.getAllHeadersNamed("range"))
+            {
+                size_t r = utils::numFromString<size_t>(utils::string::split(range->at(0), "-").back()).unwrapOrDefault();
+                if (r == 0)
+                {
+                    co_await waitForMainThread([&res, slot, this] {
+                        showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+                    });
+                    log::warn("{}", res.string());
+                    co_return false;
+                }
+                i = r + 1;
+            }
+            else
+            {
+                co_await waitForMainThread([&res, slot, this] {
+                    showError(fmt::format("Slot {} Save Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+                });
+                log::warn("{}", res.string());
+                co_return false;
+            }
+        }
+    }
+
+    auto remZip = asp::fs::removeFile(zipPath);
+    m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
+    m_metadataMap[slot]["size"] = std::to_string(m_saveTotal);
+
+    co_return true;
+}
+
+bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
+{
+    // make the level stats string...
+    DS_Dictionary gs;
+    gs.loadRootSubDictFromString(ZipUtils::decompressString(std::string(GMdata), false, 0));
+
+    if (gs.getIntegerForKey("GJA_003") != GJAccountManager::sharedState()->m_accountID)
+    {
+        showError("User data load error", "Please make sure you're <cy>logged into the same account</c> that's on the save file to load stats\n<cl>(other data such as levels has been loaded)</c>", true, false);
+        return false;
+    }
+    std::string statsString;
+    auto levelDic = gs.getDictForKey("GLM_03", false);
+    size_t levelCount = 0;
+    for (auto [id, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levelDic))
+    {
+        if (level == nullptr)
+            continue;
+
+        if (levelCount != 0)
+            statsString += ",";
+
+        statsString += id;
+        statsString += ("," + std::to_string(level->m_stars.value()));
+
+        ++levelCount;
+    }
+    if (levelDic->count() != levelCount)
+    {
+        showError(fmt::format("Slot load failed"), "Can't get levels", false);
+        return false;
+    }
+
+    // now lets make achievements silent
+    auto am = AchievementManager::sharedState();
+    bool oldDontNotify = am->m_dontNotify;
+    am->m_dontNotify = true;
+
+    // do whatever this is
+    auto gsm = GameStatsManager::sharedState();
+    bool oldSkipIncrementChallenge = gsm->m_skipIncrementChallenge;
+    gsm->m_skipIncrementChallenge = true;
+    gsm->preSaveGameStats();
+    gsm->m_usePlayerStatsCCDictionary = true;
+
+    // load gm data
+    auto gm = GameManager::sharedState();
+    gd::string gms(GMdata.data());
+    gm->loadFromCompressedString(gms);
+
+    // i really really REALLY don't want to hardcode this but i can't think of something better if u know of a better solution PLEASE let me know
+    std::string_view packsString = "1:1:3:11940,150245,215705:4:3:5:1|1:2:3:151245,61757,150906:4:4:5:1|1:3:3:59767,61982,65106:4:4:5:1|1:5:3:217631,3785,281148:4:5:5:1|1:6:3:167527,23420,88737:4:6:5:1|1:7:3:71485,77879,79275:4:6:5:1|1:8:3:8612,131259,85065:4:7:5:1|1:9:3:87960,116806,278956:4:8:5:1|1:10:3:269500,49229,169590:4:8:5:1|1:11:3:329929,188909,340602:4:9:5:1|1:19:3:341613,358750,369294:4:10:5:2|1:20:3:70059,10109,135561:4:10:5:2|1:21:3:57730,308891,102765:4:10:5:2|1:22:3:186646,13519,55520:4:10:5:2|1:26:3:199761,214523,130414:4:10:5:2|1:27:3:497514,380082,553327:4:10:5:2|1:28:3:541953,379772,449502:4:10:5:2|1:29:3:511533,350329,428765:4:10:5:2|1:30:3:393159,456678,396874:4:10:5:2|1:31:3:450920,316982,436624:4:10:5:2|1:32:3:490078,506009,513124:4:4:5:1|1:33:3:364445,411459,509393:4:5:5:1|1:34:3:422703,460862,124052:4:6:5:1|1:35:3:461472,516810,447766:4:8:5:1|1:36:3:456675,471354,457265:4:8:5:1|1:37:3:674454,750434,835854:4:5:5:1|1:38:3:809579,741941,577710:4:5:5:1|1:39:3:819956,540428,878743:4:6:5:1|1:40:3:714673,729521,661286:4:7:5:1|1:41:3:821459,692596,745177:4:8:5:1|1:42:3:857195,687938,804313:4:8:5:1|1:43:3:827829,664044,708901:4:8:5:1|1:44:3:882417,884256,551979:4:9:5:1|1:45:3:856066,862216,877915:4:6:5:1|1:46:3:874540,664867,700880:4:10:5:2|1:47:3:682941,897987,513137:4:10:5:2|1:48:3:776919,741635,735154:4:10:5:2|1:49:3:764038,897837,848722:4:10:5:2|1:50:3:840397,413504,839175:4:10:5:2|1:52:3:1512012,1602784,1649640:4:4:5:1|1:53:3:1244147,1389451,1642022:4:3:5:1|1:54:3:1314024,1629780,1721197:4:4:5:1|1:55:3:1446958,1063115,1734354:4:4:5:1|1:56:3:980341,1541962,1160937:4:5:5:1|1:57:3:1001204,1694003,1544084:4:6:5:1|1:58:3:1498893,1123276,1322487:4:7:5:1|1:59:3:1566116,946020,1100161:4:8:5:1|1:60:3:1350389,1215630,1724579:4:8:5:1|1:61:3:1267316,1670283,1205277:4:8:5:1|1:62:3:1447246,1132530,1683722:4:9:5:1|1:63:3:1728550,1799065,1311773:4:9:5:1|1:64:3:1018758,1326086,1698428:4:10:5:2|1:65:3:1668421,1703546,923264:4:10:5:2|1:66:3:1650666,1474319,1777565:4:10:5:2|1:67:3:4454123,11280109,6508283:4:2:5:1|1:68:3:10992098,9110646,9063899:4:3:5:1|1:69:3:8320596,2820124,8477262:4:3:5:1|1:70:3:5131543,8157377,8571598:4:4:5:1|1:71:3:12178580,11357573,11591917:4:4:5:1|1:72:3:4449079,6979485,10110092:4:4:5:1|1:73:3:13766381,13242284,13963465:4:4:5:1|1:74:3:8939774,9204593,6324840:4:5:5:1|1:75:3:7485599,5017264,6053464:4:5:5:1|1:76:3:13912771,12577409,11924846:4:5:5:1|1:77:3:3382569,3224853,3012870:4:6:5:1";
+    auto mapPacks = GameLevelManager::sharedState()->createAndGetMapPacks(packsString.data());
+
+    for (auto pack : CCArrayExt<GJMapPack *>(mapPacks))
+    {
+        if (pack->hasCompletedMapPack())
+            gsm->completedMapPack(pack);
+
+        gsm->setStarsForMapPack(pack->m_packID, pack->m_stars);
+    }
+
+    // now we re count stats with the awesome string i made
+    gm->recountUserStats(statsString);
+
+    // do these things
+    gsm->verifyUserCoins();
+    gsm->tryFixPathBug();
+    gsm->verifyPathAchievements();
+
+    // and put everything back!
+    gsm->m_usePlayerStatsCCDictionary = false;
+    gsm->postLoadGameStats();
+
+    am->m_dontNotify = oldDontNotify;
+    gsm->m_skipIncrementChallenge = oldSkipIncrementChallenge;
+
+    // set every icon cuz they break sometimes lol
+    gm->m_playerFrame = gs.getIntegerForKey("playerFrame");
+    gm->m_playerShip = gs.getIntegerForKey("playerShip");
+    gm->m_playerBall = gs.getIntegerForKey("playerBall");
+    gm->m_playerBird = gs.getIntegerForKey("playerBird");
+    gm->m_playerDart = gs.getIntegerForKey("playerDart");
+    gm->m_playerRobot = gs.getIntegerForKey("playerRobot");
+    gm->m_playerSpider = gs.getIntegerForKey("playerSpider");
+    gm->m_playerSwing = gs.getIntegerForKey("playerSwing");
+    gm->m_playerColor = gs.getIntegerForKey("playerColor");
+    gm->m_playerColor2 = gs.getIntegerForKey("playerColor2");
+    gm->m_playerGlowColor = (gs.getIntegerForKey("playerColor3") == -1) ? gs.getIntegerForKey("playerColor2") : gs.getIntegerForKey("playerColor3");
+    gm->m_playerStreak = gs.getIntegerForKey("playerStreak");
+    gm->m_playerShipFire = gs.getIntegerForKey("playerShipStreak");
+    gm->m_playerDeathEffect = gs.getIntegerForKey("playerDeathEffect");
+    gm->m_playerJetpack = gs.getIntegerForKey("playerJetpack");
+    gm->m_playerGlow = gs.getBoolForKey("playerGlow");
+
+    // setting game variables
+    if (Mod::get()->getSettingValue<bool>("load-game-options"))
+    {
+        for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(gs.getDictForKey("valueKeeper", false)))
+        {
+            if (!key.contains("gv_"))
+                continue;
+
+            auto vint = value->intValue();
+            auto kname = utils::string::remove(key, "gv_");
+            auto kint = numFromString<int>(kname).unwrapOrDefault();
+            switch (kint)
+            {
+            case 0:
+            case 23:
+            case 25:
+            case 28:
+            case 30:
+            case 32:
+            case 115:
+            case 116:
+            case 122:
+            case 168:
+                continue;
+            }
+
+            if (vint == 0 || vint == 1)
+                gm->setGameVariable(kname.c_str(), static_cast<bool>(vint));
+            else
+                gm->setIntGameVariable(kname.c_str(), vint);
+        }
+    }
+
+    return true;
+}
+
+bool GDriveManager::loadLocalLevelsManagerData(const std::string_view LLMdata)
+{
+    auto llm = LocalLevelManager::sharedState();
+    gd::string llms(LLMdata.data());
+    llm->loadFromCompressedString(llms);
+
+    return true;
+}
+
+arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveManager::slotType saveFileType, ByteVector saveFile)
+{
+    if (saveFile.empty())
+    {
+        co_await waitForMainThread([&loadLayer] {
+            if (loadLayer)
+                loadLayer->setMessage("Preparing...");
+        });
+
+        m_loadProgress = 0;
+        m_loadTotal = 0;
+        std::string token = co_await getAccessToken();
+        std::optional<std::string> parentID = co_await getUserFolderID(true);
+
+        if (!parentID)
+        {
+            co_await waitForMainThread([this] { showError("Couldn't find user folder", "", false); });
+            co_return false;
+        }
+
+        auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot, *parentID));
+        if (!fileID)
+        {
+            co_await waitForMainThread([this] { showError("Couldn't find file", "", false); });
+            co_return false;
+        }
+        saveFileType = fileID->second;
+
+        auto req = web::WebRequest();
+        req.header("Authorization", fmt::format("Bearer {}", token));
+
+        /* Get file size */
+        req.param("fields", "size");
+        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID->first));
+        if (res.ok())
+        {
+            auto size = numFromString<size_t>(res.json().unwrapOrDefault().get<std::string>("size").unwrapOrDefault()).unwrapOrDefault();
+
+            if (size == 0)
+            {
+                co_await waitForMainThread([&res, slot, this] {
+                    showError(fmt::format("Slot {} load Failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+                });
+                co_return false;
+            }
+
+            m_loadTotal = size;
+            m_metadataMap[slot]["size"] = std::to_string(size);
+        }
+        else
             log::warn("{}", res.string());
-            co_await waitForMainThread([&res, slot, this] {
-                showError(fmt::format("Slot {} Load failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+
+        co_await waitForMainThread([&loadLayer, this, slot] {
+            if (loadLayer)
+            {
+                loadLayer->setMessage(fmt::format("Downloading Slot {} Data...", slot));
+                loadLayer->showPercentage(m_loadTotal);
+            }
+        });
+
+        /* Download Data */
+        responseReq.param("alt", "media");
+        responseReq.header("Authorization", fmt::format("Bearer {}", token));
+        int retries = 0;
+
+        size_t i = 0;
+        while (i < m_loadTotal)
+        {
+            size_t currentSize = std::min(m_chunkSize, m_loadTotal - i);
+            m_loadProgress = i;
+
+            responseReq.removeHeader("range");
+            responseReq.header("range", fmt::format("bytes={}-{}", i, i + currentSize - 1));
+            res = co_await responseReq.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID->first));
+
+            if (res.ok())
+            {
+                saveFile.insert(saveFile.end(), res.data().begin(), res.data().end());
+                i += currentSize;
+            }
+            else if (res.error())
+            {
+                if (auto range = res.getAllHeadersNamed("content-range"))
+                {
+                    size_t r = utils::numFromString<size_t>(utils::string::split(utils::string::split(range->at(0), "-").back(), "/").front()).unwrapOrDefault();
+                    if (r == 0)
+                    {
+                        co_await waitForMainThread([&res, slot, this] {
+                            showError(fmt::format("Slot {} load Failed", slot), "Can't extract header", false);
+                        });
+                        co_return false;
+                    }
+
+                    saveFile.insert(saveFile.end(), res.data().begin(), res.data().end());
+                    i = r + 1;
+                }
+                else
+                {
+                    co_await waitForMainThread([&res, slot, this] {
+                        showError(fmt::format("Slot {} load Failed", slot), "Can't get header", false);
+                    });
+                    co_return false;
+                }
+            }
+            else if (res.badClient())
+            {
+                // try a couple times before giving up ... maybe i should make this a seconds time out instead....
+                if (retries < 15)
+                {
+                    retries += 1;
+                    continue;
+                }
+                else
+                {
+                    // assume the worst.
+                    co_await waitForMainThread([&res, slot, this] {
+                        showError(fmt::format("Slot {} timeout Reached", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+                    });
+                    co_return false;
+                }
+            }
+            else
+            {
+                log::warn("{}", res.string());
+                co_await waitForMainThread([&res, slot, this] {
+                    showError(fmt::format("Slot {} Load failed", slot), fmt::format("error: {} {}", res.code(), res.json().unwrapOrDefault()["error"].get<std::string>("status").unwrapOrDefault()), false);
+                });
+                co_return false;
+            }
+        }
+    }
+    else
+        m_loadTotal = saveFile.size();
+    std::string GMData;
+    std::string LLMData;
+
+    if (saveFileType == GDriveManager::slotType::New)
+    {
+        const auto GMPath = "CCGameManager.dat";
+        const auto LLMPath = "CCLocalLevels.dat";
+        auto unzipRes = file::Unzip::create(saveFile);
+        if (!unzipRes)
+        {
+            co_await waitForMainThread([this] {
+                showError("Couldn't read save file,", "please try again", false);
             });
             co_return false;
         }
+
+        auto unzip = std::move(unzipRes).unwrap();
+
+        if (Mod::get()->getSettingValue<bool>("load-gm") && unzip.hasEntry(GMPath))
+        {
+            auto GMres = unzip.extract(GMPath);
+            if (GMres)
+            {
+                auto GMvec = std::move(GMres).unwrap();
+                GMData = std::string(GMvec.begin(), GMvec.end());
+            }
+            else
+            {
+                co_await waitForMainThread([this] {
+                    showError("Couldn't read CCGameManger", "", false);
+                });
+            }
+        }
+
+        if (Mod::get()->getSettingValue<bool>("load-llm") && unzip.hasEntry(LLMPath))
+        {
+            auto LLMres = unzip.extract(LLMPath);
+            if (LLMres)
+            {
+                auto LLMvec = std::move(LLMres).unwrap();
+                LLMData = std::string(LLMvec.begin(), LLMvec.end());
+            }
+            else
+            {
+                co_await waitForMainThread([this] {
+                    showError("Couldn't read CCLocalLevels", "", false);
+                });
+            }
+        }
     }
-
-    std::string_view sv(reinterpret_cast<const char *>(buf.data()), buf.size());
-    auto strings = utils::string::splitView(sv, "|");
-
-    if (m_loadTotal != buf.size() || strings.size() != 2)
+    else
     {
-        co_await waitForMainThread(
-            [&res, slot, this] { showError(fmt::format("Slot {} load failed", slot), "File isn't valid", false); });
-        co_return false;
+        std::string_view sv(reinterpret_cast<const char *>(saveFile.data()), saveFile.size());
+        auto strings = utils::string::splitView(sv, "|");
+
+        if (m_loadTotal != saveFile.size() || strings.size() != 2)
+        {
+            co_await waitForMainThread(
+                [this] { showError("load failed", "File isn't valid", false); });
+            co_return false;
+        }
+
+        if (Mod::get()->getSettingValue<bool>("load-gm"))
+            GMData = strings[0];
+        if (Mod::get()->getSettingValue<bool>("load-llm"))
+            LLMData = strings[1];
     }
 
     // here we go
-    co_await waitForMainThread([this, &strings, &loadLayer, slot] {
-        // make the level stats string...
-        DS_Dictionary gs;
-        gs.loadRootSubDictFromString(ZipUtils::decompressString(std::string(strings[0]), false, 0));
-        std::string statsString;
-
-        auto levelDic = gs.getDictForKey("GLM_03", false);
-        size_t levelCount = 0;
-        for (auto [id, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levelDic))
-        {
-            if (level == nullptr)
-                continue;
-
-            if (levelCount != 0)
-                statsString += ",";
-
-            statsString += id;
-            statsString += ("," + std::to_string(level->m_stars.value()));
-
-            ++levelCount;
-        }
-
-        if (levelDic->count() != levelCount)
-        {
-            showError(fmt::format("Slot {} load failed", slot), "Can't get levels", false);
-            return;
-        }
-
-        // now lets make achievements silent
-        auto am = AchievementManager::sharedState();
-        bool oldDontNotify = am->m_dontNotify;
-        am->m_dontNotify = true;
-
-        // do whatever this is
-        auto gsm = GameStatsManager::sharedState();
-        bool oldSkipIncrementChallenge = gsm->m_skipIncrementChallenge;
-        gsm->m_skipIncrementChallenge = true;
-        gsm->preSaveGameStats();
-        gsm->m_usePlayerStatsCCDictionary = true;
-
-        // load both strings
-        auto gm = GameManager::sharedState();
-        gd::string gms(strings[0].data());
-        gm->loadFromCompressedString(gms);
-
-        auto llm = LocalLevelManager::sharedState();
-        gd::string llms(strings[1].data());
-        llm->loadFromCompressedString(llms);
-
-        // i really really REALLY don't want to hardcode this but i can't think of something better if u know of a better solution PLEASE let me know
-        std::string_view packsString = "1:1:3:11940,150245,215705:4:3:5:1|1:2:3:151245,61757,150906:4:4:5:1|1:3:3:59767,61982,65106:4:4:5:1|1:5:3:217631,3785,281148:4:5:5:1|1:6:3:167527,23420,88737:4:6:5:1|1:7:3:71485,77879,79275:4:6:5:1|1:8:3:8612,131259,85065:4:7:5:1|1:9:3:87960,116806,278956:4:8:5:1|1:10:3:269500,49229,169590:4:8:5:1|1:11:3:329929,188909,340602:4:9:5:1|1:19:3:341613,358750,369294:4:10:5:2|1:20:3:70059,10109,135561:4:10:5:2|1:21:3:57730,308891,102765:4:10:5:2|1:22:3:186646,13519,55520:4:10:5:2|1:26:3:199761,214523,130414:4:10:5:2|1:27:3:497514,380082,553327:4:10:5:2|1:28:3:541953,379772,449502:4:10:5:2|1:29:3:511533,350329,428765:4:10:5:2|1:30:3:393159,456678,396874:4:10:5:2|1:31:3:450920,316982,436624:4:10:5:2|1:32:3:490078,506009,513124:4:4:5:1|1:33:3:364445,411459,509393:4:5:5:1|1:34:3:422703,460862,124052:4:6:5:1|1:35:3:461472,516810,447766:4:8:5:1|1:36:3:456675,471354,457265:4:8:5:1|1:37:3:674454,750434,835854:4:5:5:1|1:38:3:809579,741941,577710:4:5:5:1|1:39:3:819956,540428,878743:4:6:5:1|1:40:3:714673,729521,661286:4:7:5:1|1:41:3:821459,692596,745177:4:8:5:1|1:42:3:857195,687938,804313:4:8:5:1|1:43:3:827829,664044,708901:4:8:5:1|1:44:3:882417,884256,551979:4:9:5:1|1:45:3:856066,862216,877915:4:6:5:1|1:46:3:874540,664867,700880:4:10:5:2|1:47:3:682941,897987,513137:4:10:5:2|1:48:3:776919,741635,735154:4:10:5:2|1:49:3:764038,897837,848722:4:10:5:2|1:50:3:840397,413504,839175:4:10:5:2|1:52:3:1512012,1602784,1649640:4:4:5:1|1:53:3:1244147,1389451,1642022:4:3:5:1|1:54:3:1314024,1629780,1721197:4:4:5:1|1:55:3:1446958,1063115,1734354:4:4:5:1|1:56:3:980341,1541962,1160937:4:5:5:1|1:57:3:1001204,1694003,1544084:4:6:5:1|1:58:3:1498893,1123276,1322487:4:7:5:1|1:59:3:1566116,946020,1100161:4:8:5:1|1:60:3:1350389,1215630,1724579:4:8:5:1|1:61:3:1267316,1670283,1205277:4:8:5:1|1:62:3:1447246,1132530,1683722:4:9:5:1|1:63:3:1728550,1799065,1311773:4:9:5:1|1:64:3:1018758,1326086,1698428:4:10:5:2|1:65:3:1668421,1703546,923264:4:10:5:2|1:66:3:1650666,1474319,1777565:4:10:5:2|1:67:3:4454123,11280109,6508283:4:2:5:1|1:68:3:10992098,9110646,9063899:4:3:5:1|1:69:3:8320596,2820124,8477262:4:3:5:1|1:70:3:5131543,8157377,8571598:4:4:5:1|1:71:3:12178580,11357573,11591917:4:4:5:1|1:72:3:4449079,6979485,10110092:4:4:5:1|1:73:3:13766381,13242284,13963465:4:4:5:1|1:74:3:8939774,9204593,6324840:4:5:5:1|1:75:3:7485599,5017264,6053464:4:5:5:1|1:76:3:13912771,12577409,11924846:4:5:5:1|1:77:3:3382569,3224853,3012870:4:6:5:1";
-        auto mapPacks = GameLevelManager::sharedState()->createAndGetMapPacks(packsString.data());
-
-        for (auto pack : CCArrayExt<GJMapPack *>(mapPacks))
-        {
-            if (pack->hasCompletedMapPack())
-                gsm->completedMapPack(pack);
-
-            gsm->setStarsForMapPack(pack->m_packID, pack->m_stars);
-        }
-
-        // now we re count stats with the awesome string i made
-        gm->recountUserStats(statsString);
-
-        // do these things
-        gsm->verifyUserCoins();
-        gsm->tryFixPathBug();
-        gsm->verifyPathAchievements();
-
-        // and put everything back!
-        gsm->m_usePlayerStatsCCDictionary = false;
-        gsm->postLoadGameStats();
-
-        am->m_dontNotify = oldDontNotify;
-        gsm->m_skipIncrementChallenge = oldSkipIncrementChallenge;
-
-        // set every icon cuz they break sometimes lol
-        gm->m_playerFrame = gs.getIntegerForKey("playerFrame");
-        gm->m_playerShip = gs.getIntegerForKey("playerShip");
-        gm->m_playerBall = gs.getIntegerForKey("playerBall");
-        gm->m_playerBird = gs.getIntegerForKey("playerBird");
-        gm->m_playerDart = gs.getIntegerForKey("playerDart");
-        gm->m_playerRobot = gs.getIntegerForKey("playerRobot");
-        gm->m_playerSpider = gs.getIntegerForKey("playerSpider");
-        gm->m_playerSwing = gs.getIntegerForKey("playerSwing");
-        gm->m_playerColor = gs.getIntegerForKey("playerColor");
-        gm->m_playerColor2 = gs.getIntegerForKey("playerColor2");
-        gm->m_playerGlowColor = (gs.getIntegerForKey("playerColor3") == -1) ? gs.getIntegerForKey("playerColor2") : gs.getIntegerForKey("playerColor3");
-        gm->m_playerStreak = gs.getIntegerForKey("playerStreak");
-        gm->m_playerShipFire = gs.getIntegerForKey("playerShipStreak");
-        gm->m_playerDeathEffect = gs.getIntegerForKey("playerDeathEffect");
-        gm->m_playerJetpack = gs.getIntegerForKey("playerJetpack");
-        gm->m_playerGlow = gs.getBoolForKey("playerGlow");
-
-        // setting game variables
-        if (Mod::get()->getSettingValue<bool>("load-game-options"))
-        {
-            for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(gs.getDictForKey("valueKeeper", false)))
-            {
-                if (!key.contains("gv_"))
-                    continue;
-
-                auto vint = value->intValue();
-                auto kname = utils::string::remove(key, "gv_");
-                auto kint = numFromString<int>(kname).unwrapOrDefault();
-                switch (kint)
-                {
-                case 0:
-                case 23:
-                case 25:
-                case 28:
-                case 30:
-                case 32:
-                case 115:
-                case 116:
-                case 122:
-                case 168:
-                    continue;
-                }
-
-                if (vint == 0 || vint == 1)
-                    gm->setGameVariable(kname.c_str(), static_cast<bool>(vint));
-                else
-                    gm->setIntGameVariable(kname.c_str(), vint);
-            }
-        }
+    co_await waitForMainThread([this, &GMData, &LLMData] {
+        if (!GMData.empty())
+            loadGameManagerData(GMData);
+        if (!LLMData.empty())
+            loadLocalLevelsManagerData(LLMData);
     });
 
     co_return true;
@@ -987,19 +1097,14 @@ arc::Future<bool> GDriveManager::getMetadata()
                 auto slot = utils::numFromString<int>(utils::string::filter(value.get<std::string>("name").unwrapOrDefault(), "0123456789")).unwrapOr(-1);
 
                 if (slot < 1)
-                {
-                    log::debug("Slot name is invalid [{}], skipping it...", slot);
                     continue;
-                }
+
                 auto description = value.get<std::string>("description").unwrapOrDefault();
                 auto modifiedTime = value.get<std::string>("modifiedTime").unwrapOrDefault();
                 auto size = value.get<std::string>("size").unwrapOrDefault();
 
                 if (modifiedTime.empty() && (size.empty() || size == "0"))
-                {
-                    log::debug("Slot {} is empty, skipping it...", slot);
                     continue;
-                }
 
                 // parse modifiedTime
                 std::tm tm;
@@ -1047,7 +1152,7 @@ arc::Future<bool> GDriveManager::setDescription(const std::string description, c
     body.set("description", description);
     req.bodyJSON(body);
 
-    auto res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
+    auto res = co_await req.patch(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID->first));
     if (res.ok())
         m_metadataMap[slot]["description"] = description.data();
     else
@@ -1072,7 +1177,7 @@ arc::Future<bool> GDriveManager::deleteFile(const int slot)
     req.header("Authorization", fmt::format("Bearer {}", token));
     req.method("DELETE");
 
-    auto res = co_await req.send("DELETE", fmt::format("https://www.googleapis.com/drive/v3/files/{}", *fileID));
+    auto res = co_await req.send("DELETE", fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID->first));
     if (res.error())
     {
         co_await waitForMainThread([this, slot, &res] {
@@ -1104,7 +1209,7 @@ arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevision
         if (!nextPageToken.empty())
             req.param("pageToken", nextPageToken);
 
-        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}/revisions", *fileID));
+        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}/revisions", fileID->first));
 
         if (res.ok())
         {
