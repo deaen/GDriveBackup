@@ -24,10 +24,7 @@
 	},
 	"resources": {
 		"sprites": [
-			"resources/size.png",
-			"resources/title.png",
-			"resources/icon.png",
-			"resources/iconNew.png"
+			"resources/*.png"
 		]
 	},
 	"settings": {

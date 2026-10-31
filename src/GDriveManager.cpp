@@ -1209,7 +1209,7 @@ arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevision
         if (!nextPageToken.empty())
             req.param("pageToken", nextPageToken);
 
-        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}/revisions", fileID->first));
+        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}/history", fileID->first));
 
         if (res.ok())
         {
