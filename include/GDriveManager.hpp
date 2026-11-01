@@ -16,12 +16,12 @@ class GDriveManager : public cocos2d::CCObject
     void operator=(GDriveManager const &) = delete;
     static GDriveManager *getInstance();
 
-    enum slotType
+    enum class slotType
     {
         New,
         Old,
     };
-    enum Status
+    enum class Status
     {
         Idle,
         Waiting,

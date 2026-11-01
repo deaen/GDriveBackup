@@ -1400,19 +1400,19 @@ void GDriveManager::removeFromQueue(const int slot)
 GDriveManager::Status GDriveManager::checkStatus(GDriveSlotBox *box)
 {
     if (m_saveQueue.empty())
-        return Idle;
+        return Status::Idle;
     if (m_saveQueue.begin()->first == box->getSlot())
     {
         m_saveQueue.insert_or_assign(box->getSlot(), box);
-        return Working;
+        return Status::Working;
     }
     else if (m_saveQueue.contains(box->getSlot()))
     {
         m_saveQueue.insert_or_assign(box->getSlot(), box);
-        return Waiting;
+        return Status::Waiting;
     }
 
-    return Idle;
+    return Status::Idle;
 }
 
 void GDriveManager::removeBoxPointer(const int slot)

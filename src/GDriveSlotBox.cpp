@@ -232,7 +232,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
 void GDriveSlotBox::updateStatus()
 {
     auto saveStatus = GDriveManager::getInstance()->checkStatus(this);
-    if (saveStatus == GDriveManager::Working)
+    if (saveStatus == GDriveManager::Status::Working)
     {
         setStatusVisiblity(true);
         showPercentage(GDriveManager::getInstance()->getSaveTotal());
@@ -241,7 +241,7 @@ void GDriveSlotBox::updateStatus()
 
         setEditMode(false);
     }
-    else if (saveStatus == GDriveManager::Waiting)
+    else if (saveStatus == GDriveManager::Status::Waiting)
     {
         setStatusVisiblity(true);
         setStatusMessage("Waiting...");
