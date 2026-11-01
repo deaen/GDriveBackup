@@ -319,12 +319,13 @@ void GDriveSlotBox::onCancel(CCObject *sender)
 {
     createQuickPopup(
         fmt::format("Cancel Save to Slot {}", getSlot()).c_str(),
-        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", getSlot()).c_str(), "Continue", "Cancel",
+        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", getSlot()).c_str(), "Cancel", "Continue",
         [this](auto, bool btn2) {
-            if (btn2)
+            if (!btn2)
             {
                 setStatusVisiblity(false);
                 GDriveManager::getInstance()->removeFromQueue(getSlot());
+                setWorkingStatus(false);
             }
         },
         true, true);
@@ -332,16 +333,25 @@ void GDriveSlotBox::onCancel(CCObject *sender)
 
 void GDriveSlotBox::onSlotInfo(CCObject *sender)
 {
-    // GDriveLoadLayer *layer = GDriveLoadLayer::create();
-    // layer->setMessage(fmt::format("Getting slot {}'s information...", getSlot()));
-    // layer->show();
-    // async::spawn(/**/, [layer, this](bool ok) {
-    //     layer->removeFromParent();
-    //     if (ok)
-    //     {
-    //         // doo stuff
-    //     }
-    // });
+    GDriveLoadLayer *layer = GDriveLoadLayer::create();
+    layer->setMessage(fmt::format("Getting slot {}'s information...", getSlot()));
+    layer->show();
+    async::spawn(GDriveManager::getInstance()->getSaveInfo(getSlot()), [layer, this](std::optional<GDriveManager::saveInformation> info) {
+        layer->removeFromParent();
+
+        if(info){
+        FLAlertLayer::create(
+            fmt::format("Slot {} information", getSlot()).c_str(), // title
+            "Data avaliable in this slot\n"
+            + fmt::format("Game & user data: {}", (info->GMData) ? "<cg>Available</c>" : "<cr>Missing</c>")
+            + "\n"
+            + fmt::format("Local levels: {}", (info->LLMData) ? "<cg>Available</c>" : "<cr>Missing</c>"),
+            "OK"
+            )
+            ->show();
+        }
+        else GDriveManager::getInstance()->showError("Couldn't get slot info,", "please try again", false);
+    });
 }
 
 void GDriveSlotBox::onDelete(CCObject *sender)
@@ -375,7 +385,8 @@ void GDriveSlotBox::onDelete(CCObject *sender)
                                 auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
                                 if (metadataMap && metadataMap->contains(getSlot()))
                                     metadataMap->erase(getSlot());
-                                updateStatus();
+                                updateInfo();
+                                setEditMode(false);
                             }
                         });
                     }
@@ -474,6 +485,7 @@ void GDriveSlotBox::updateInfo()
         m_loadButton->setEnabled(false);
         m_loadButtonSprite->setOpacity(175);
         m_loadButtonSprite->setColor(ccGRAY);
+        m_slotTitle->setString(fmt::format("Slot {}", getSlot()));
         m_empty = true;
     }
     else
@@ -524,17 +536,6 @@ void GDriveSlotBox::setEditMode(bool on)
         m_loadButton->setVisible(!showEditControls);
         m_infoRow->setVisible(!showEditControls);
     }
-    // const bool showSpinner = m_editMode && isBusy && !m_empty;
-
-    // m_statusSpinner->setVisible(showSpinner);
-    // if (showSpinner)
-    // {
-    //     m_statusSpinner->setContentSize({60.f, 95.f});
-    //     m_statusSpinner->updateLayout();
-    //     m_saveButton->setVisible(!showSpinner);
-    //     m_loadButton->setVisible(!showSpinner);
-    //     m_infoRow->setVisible(!showSpinner);
-    // }
 
     if (!m_editMode)
         updateInfo();
@@ -615,9 +616,7 @@ void GDriveSlotBox::loadMetadata()
         }
     }
 };
-
 // this is awful. do not look below
-
 class $modify(gdbDialogLayer, DialogLayer)
 {
     $override void displayDialogObject(DialogObject *object)
@@ -639,13 +638,13 @@ class $modify(gdbDialogLayer, DialogLayer)
             m_characterSprite->initWithFile("cupanDialog04.png"_spr);
             break;
         case 5:
-                    m_characterSprite->initWithFile("cupanDialog05.png"_spr);
+            m_characterSprite->initWithFile("cupanDialog05.png"_spr);
             break;
         case 6:
-                            m_characterSprite->initWithFile("cupanDialog06.png"_spr);
+            m_characterSprite->initWithFile("cupanDialog06.png"_spr);
             break;
         case 7:
-                                    m_characterSprite->initWithFile("cupanDialog07.png"_spr);
+            m_characterSprite->initWithFile("cupanDialog07.png"_spr);
             break;
         }
     }

@@ -1,4 +1,5 @@
 #include "GDriveManager.hpp"
+#include "GDriveConsts.hpp"
 #include "GDriveEncrypt.hpp"
 #include <Geode/binding/LocalLevelManager.hpp>
 #include <Geode/utils/base64.hpp>
@@ -329,7 +330,7 @@ arc::Future<std::optional<std::pair<std::string, GDriveManager::slotType>>> GDri
         web::WebResponse res;
 
         // look for file
-        req.param("q", "((appProperties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or (name='save-{}' or name='save-{}.dat')) and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
+        req.param("q", "((appProperties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or name='save-{}' or name='save-{}.dat') and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
         req.param("orderBy", "modifiedTime");
         res = co_await req.get("https://www.googleapis.com/drive/v3/files");
 
@@ -502,9 +503,14 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     req.header("Content-Type", "application/json; charset=UTF-8");
 
     web::WebResponse res;
-    auto reqBody = matjson::makeObject(
-        {{"name", fmt::format("slot-{}.gdbsave", slot)},
-         {"appProperties", matjson::makeObject({{"slotID", slot}})}});
+    auto reqBody = matjson::makeObject({{"name", fmt::format("slot-{}.gdbsave", slot)}});
+
+    auto appProps = matjson::makeObject({{"slotID", slot}});
+    if (!GMData.empty())
+        appProps.set(GDriveConsts::GMData, true);
+    if (!LLMData.empty())
+        appProps.set(GDriveConsts::GMData, true);
+    reqBody.set("properties", appProps);
 
     if (fileID->first.empty())
     {
@@ -1186,6 +1192,42 @@ arc::Future<bool> GDriveManager::deleteFile(const int slot)
         co_return false;
     }
     co_return true;
+}
+
+arc::Future<std::optional<GDriveManager::saveInformation>> GDriveManager::getSaveInfo(const int slot)
+{
+    saveInformation info;
+    auto fileID = co_await getFileID(slot, false);
+
+    if (!fileID)
+        co_return std::nullopt;
+
+    if (fileID->second == slotType::Old)
+    {
+        info.GMData = true;
+        info.LLMData = true;
+    }
+    else
+    {
+        auto token = co_await getAccessToken();
+        auto req = web::WebRequest();
+        req.header("Authorization", fmt::format("Bearer {}", token));
+        req.param("fields", "properties,name");
+
+        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID->first));
+
+        if (res.ok())
+        {
+            auto props = res.json().unwrapOrDefault().get<matjson::Value>("properties").unwrapOrDefault();
+
+                info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
+                info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
+        }
+        else
+            co_return std::nullopt;
+    }
+
+    co_return info;
 }
 
 arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevisionList(const int slot)

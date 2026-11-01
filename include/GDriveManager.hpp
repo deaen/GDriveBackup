@@ -34,6 +34,11 @@ class GDriveManager : public cocos2d::CCObject
         size_t size;
         bool keepForever;
     };
+    struct saveInformation
+    {
+        bool GMData = false;
+        bool LLMData = false;
+    };
 
     void signin();
     void verify();
@@ -55,6 +60,7 @@ class GDriveManager : public cocos2d::CCObject
     bool loadGameManagerData(const std::string_view GMdata);
     bool loadLocalLevelsManagerData(const std::string_view LLMdata);
     arc::Future<bool> loadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, slotType saveFileType = slotType::Old, ByteVector saveFile = {});
+    arc::Future<std::optional<saveInformation>> getSaveInfo(const int slot);
     arc::Future<std::optional<sizedata_map>> getSizeInfo();
 
     arc::Future<std::optional<std::pair<std::string, slotType>>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
