@@ -1,8 +1,6 @@
 #include "GDriveSlotBox.hpp"
 #include "GDriveManager.hpp"
 
-#include <Geode/Modify/DialogLayer.hpp>
-
 GDriveSlotBox *GDriveSlotBox::create(int slot, bool enableEditMode)
 {
     auto ret = new GDriveSlotBox();
@@ -616,7 +614,11 @@ void GDriveSlotBox::loadMetadata()
         }
     }
 };
+
 // this is awful. do not look below
+#ifdef GEODE_IS_DESKTOP
+#include <Geode/Modify/DialogLayer.hpp>
+
 class $modify(gdbDialogLayer, DialogLayer)
 {
     $override void displayDialogObject(DialogObject *object)
@@ -649,9 +651,11 @@ class $modify(gdbDialogLayer, DialogLayer)
         }
     }
 };
-
+#endif
 void GDriveSlotBox::onHistory(CCObject *sender)
 {
+    #ifdef GEODE_IS_DESKTOP
+
     if (m_seenDialog)
     {
         auto *dialogLayer = gdbDialogLayer::createDialogLayer(DialogObject::create("", "...<d100> but nobody came.", 0, 1, true, ccc3(255, 255, 255)), nullptr, 7);
@@ -695,4 +699,5 @@ void GDriveSlotBox::onHistory(CCObject *sender)
     CCScene::get()->addChild(dialogLayer, 1000);
 
     m_seenDialog = true;
+    #endif
 }
