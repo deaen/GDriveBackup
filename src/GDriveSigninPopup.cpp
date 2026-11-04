@@ -149,18 +149,18 @@ void GDriveSigninPopup::finishUp()
     GDrivePopup::create();
 }
 
-// #ifdef GEODE_IS_DESKTOP
-// #include <camila314.geode-uri/include/GeodeURI.hpp>
-// $on_mod(Loaded)
-// {
-//     URIEvent("gdrivebackup").listen([](std::string_view path) {
-//                                 if (path == "verify")
-//                                 {
-//                                     if (auto popup = GDriveManager::getInstance()->getCurrentSigninPopup())
-//                                         popup->onVerify(nullptr);
-//                                 }
-//                                 return true;
-//                             })
-//         .leak();
-// }
-// #endif
+#ifdef GEODE_IS_DESKTOP
+#include <camila314.geode-uri/include/GeodeURI.hpp>
+$on_mod(Loaded)
+{
+    URIEvent("gdrivebackup").listen([](std::string_view path) {
+                                if (path == "verify")
+                                {
+                                    if (auto popup = GDriveManager::getInstance()->getCurrentSigninPopup())
+                                        popup->onVerify(nullptr);
+                                }
+                                return true;
+                            })
+        .leak();
+}
+#endif

@@ -12,6 +12,18 @@
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {
+		"geode.node-ids": {
+			"required": false,
+			"version": ">=v1.20.0"
+		},
+		"camila314.geode-uri": {
+			"platforms": [
+				"win",
+				"mac"
+			],
+			"required": false,
+			"version": ">=v2.0.0"
+		}
 	},
 	"resources": {
 		"sprites": [
