@@ -699,5 +699,10 @@ void GDriveSlotBox::onHistory(CCObject *sender)
     CCScene::get()->addChild(dialogLayer, 1000);
 
     m_seenDialog = true;
+    
+    #else
+    FLAlertLayer::create(
+            "Mobile User", "Mobile",
+            "????")->show();
     #endif
 }
