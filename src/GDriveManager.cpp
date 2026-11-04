@@ -391,8 +391,8 @@ void GDriveManager::saveData(const int slot)
             m_saveQueue[slot]->setStatusPercentage(m_saveProgress + p.uploaded());
     });
 
-    gd::string GMData = (Mod::get()->getSettingValue<bool>("save-gm")) ? GameManager::sharedState()->getCompressedSaveString() : "";
-    gd::string LLMData = (Mod::get()->getSettingValue<bool>("save-llm")) ? LocalLevelManager::sharedState()->getCompressedSaveString() : "";
+    std::string GMData = (Mod::get()->getSettingValue<bool>("save-gm")) ? GameManager::sharedState()->getCompressedSaveString() : "";
+    std::string LLMData = (Mod::get()->getSettingValue<bool>("save-llm")) ? LocalLevelManager::sharedState()->getCompressedSaveString() : "";
     m_saveListener.spawn(uploadSave(slot, req, GMData, LLMData), [this, slot](bool ok) {
         if (m_saveQueue[slot])
         {
@@ -450,7 +450,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     }
 
     auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot), *parentID, false);
-    if (!fileID)
+    if (fileID && !fileID->first.empty())
         fileID->first = "";
 
     // create zip
@@ -672,7 +672,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
 
     // load gm data
     auto gm = GameManager::sharedState();
-    gd::string gms(GMdata.data());
+    std::string gms(GMdata.data());
     gm->loadFromCompressedString(gms);
 
     // i really really REALLY don't want to hardcode this but i can't think of something better if u know of a better solution PLEASE let me know
@@ -759,7 +759,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
 bool GDriveManager::loadLocalLevelsManagerData(const std::string_view LLMdata)
 {
     auto llm = LocalLevelManager::sharedState();
-    gd::string llms(LLMdata.data());
+    std::string llms(LLMdata.data());
     llm->loadFromCompressedString(llms);
 
     return true;
@@ -898,9 +898,9 @@ arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest respon
     }
     else
         m_loadTotal = saveFile.size();
+    
     std::string GMData;
     std::string LLMData;
-
     if (saveFileType == GDriveManager::slotType::New)
     {
         const auto GMPath = "CCGameManager.dat";

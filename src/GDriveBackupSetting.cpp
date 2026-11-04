@@ -92,16 +92,16 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
         loadMenu->setContentHeight(30.f);
 
         auto menuLayout = ColumnLayout::create()
-        ->setAxisReverse(true)
-        ->setAutoScale(false)
-        ->setPadding({0.f, 10.f, 0.f, 1.f})
-        ->setGap(5.f)
-        ->setAxisAlignment(AxisAlignment::Between);
+                              ->setAxisReverse(true)
+                              ->setAutoScale(false)
+                              ->setPadding({0.f, 10.f, 0.f, 1.f})
+                              ->setGap(5.f)
+                              ->setAxisAlignment(AxisAlignment::Between);
 
         saveMenu->setLayout(menuLayout);
         loadMenu->setLayout(menuLayout);
 
-                this->getButtonMenu()->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(30.f));
+        this->getButtonMenu()->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(30.f));
 
         this->updateState(nullptr);
 
@@ -111,35 +111,45 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
     void updateState(CCNode *invoker) override
     {
         SettingValueNodeV3::updateState(invoker);
-        auto shouldEnable = this->getSetting()->shouldEnable();
+        // auto shouldEnable = this->getSetting()->shouldEnable();
 
-        saveToggle->toggle(this->getValue().save);
-        saveToggle->setEnabled(shouldEnable);
-        saveToggle->setCascadeColorEnabled(true);
-        saveToggle->setCascadeOpacityEnabled(true);
-        saveToggle->setOpacity(shouldEnable ? 255 : 155);
-        saveToggle->setColor(shouldEnable ? ccWHITE : ccGRAY);
+        togglesValues = this->getValue();
+        saveToggle->toggle(togglesValues.save);
+        loadToggle->toggle(togglesValues.load);
 
-        loadToggle->toggle(this->getValue().load);
-        loadToggle->setEnabled(shouldEnable);
-        loadToggle->setCascadeColorEnabled(true);
-        loadToggle->setCascadeOpacityEnabled(true);
-        loadToggle->setOpacity(shouldEnable ? 255 : 155);
-        loadToggle->setColor(shouldEnable ? ccWHITE : ccGRAY);
+        log::debug("save {} & load {}", togglesValues.save, togglesValues.load);
+        // saveToggle->setEnabled(shouldEnable);
+        // saveToggle->setCascadeColorEnabled(true);
+        // saveToggle->setCascadeOpacityEnabled(true);
+        // saveToggle->setOpacity(shouldEnable ? 255 : 155);
+        // saveToggle->setColor(shouldEnable ? ccWHITE : ccGRAY);
+
+        
+        // loadToggle->setEnabled(shouldEnable);
+        // loadToggle->setCascadeColorEnabled(true);
+        // loadToggle->setCascadeOpacityEnabled(true);
+        // loadToggle->setOpacity(shouldEnable ? 255 : 155);
+        // loadToggle->setColor(shouldEnable ? ccWHITE : ccGRAY);
     }
 
     void onSaveToggle(CCObject *sender)
     {
-        auto toggle = static_cast<CCMenuItemToggler*>(sender);
-        togglesValues.save = toggle->m_toggled;
+        auto toggle = static_cast<CCMenuItemToggler *>(sender);
+        togglesValues.save = !toggle->m_toggled;
         this->setValue(togglesValues, toggle);
+
+        log::debug("save: {}", togglesValues.save);
     }
 
     void onLoadToggle(CCObject *sender)
     {
-auto toggle = static_cast<CCMenuItemToggler*>(sender);
-        togglesValues.load = toggle->m_toggled;
-        this->setValue(togglesValues, toggle);    }
+        auto toggle = static_cast<CCMenuItemToggler *>(sender);
+        togglesValues.load = !toggle->m_toggled;
+        this->setValue(togglesValues, toggle);
+
+                log::debug("load: {}", togglesValues.load);
+
+    }
 
   public:
     static GDriveBackupSettingNode *create(std::shared_ptr<GDriveBackupSetting> setting, float width)

@@ -119,7 +119,7 @@ class GDriveButtonRowNode : public SettingNodeV3
             if (result.isOk() && result.unwrap().has_value())
             {
                 auto filePath = result.unwrap().value_or("");
-                if (filePath.has_filename())
+                if (filePath.isFile())
                 {
                     auto popUp = createQuickPopup(
                         "Load local save file", "Do you want to <cg>load</c> this <cj>local</c> save file?\n<cy>This will merge your data!</c>",
