@@ -6,7 +6,8 @@ namespace GDriveConsts
     {
         bool save = false;
         bool load = false;
-
+        bool saveToggleEnabled = true;
+        bool loadToggleEnabled = true;
         bool operator==(backupSettingValue const& other) const = default;
         backupSettingValue() = default;
         backupSettingValue(bool save, bool load) : save(save), load(load) {}

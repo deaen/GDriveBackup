@@ -1,6 +1,7 @@
 #include "GDriveConsts.hpp"
 #include <Geode/loader/Mod.hpp>
 #include <Geode/loader/SettingV3.hpp>
+#include <Geode/ui/Toggler.hpp>
 using namespace geode::prelude;
 
 template <>
@@ -24,13 +25,13 @@ struct matjson::Serialize<GDriveConsts::backupSettingValue>
     }
 };
 
-class GDriveBackupSetting : public SettingBaseValueV3<GDriveConsts::backupSettingValue>
+class GDriveSaveToggles : public SettingBaseValueV3<GDriveConsts::backupSettingValue>
 {
   public:
     static Result<std::shared_ptr<SettingV3>> parse(std::string const &key, std::string const &modID, matjson::Value const &json)
     {
-        auto res = std::make_shared<GDriveBackupSetting>();
-        auto root = checkJson(json, "GDriveBackupSetting");
+        auto res = std::make_shared<GDriveSaveToggles>();
+        auto root = checkJson(json, "GDriveSaveToggles");
         res->parseBaseProperties(key, modID, root);
         root.checkUnknownKeys();
         return root.ok(std::static_pointer_cast<SettingV3>(res));
@@ -42,26 +43,31 @@ class GDriveBackupSetting : public SettingBaseValueV3<GDriveConsts::backupSettin
 template <>
 struct geode::SettingTypeForValueType<GDriveConsts::backupSettingValue>
 {
-    using SettingType = GDriveBackupSetting;
+    using SettingType = GDriveSaveToggles;
 };
 
-class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
+class GDriveSaveTogglesNode : public SettingValueNodeV3<GDriveSaveToggles>
 {
   protected:
-    CCMenuItemToggler *saveToggle;
-    CCMenuItemToggler *loadToggle;
-
+    geode::Toggler *saveToggle;
+    geode::Toggler *loadToggle;
     GDriveConsts::backupSettingValue togglesValues;
-    bool init(std::shared_ptr<GDriveBackupSetting> setting, float width)
+
+    bool init(std::shared_ptr<GDriveSaveToggles> setting, float width)
     {
         if (!SettingValueNodeV3::init(setting, width))
             return false;
 
+        auto *menu = this->getButtonMenu();
+
         // save menu
-        auto saveMenu = CCMenu::create();
+        auto saveMenu = CCNode::create();
         saveMenu->setID("save-menu"_spr);
 
-        saveToggle = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(GDriveBackupSettingNode::onSaveToggle), .5f);
+        saveToggle = geode::Toggler::createWithStandardSprites(.5f, [this](geode::Toggler *sender, bool isToggled) {
+            togglesValues.save = isToggled;
+            this->setValue(togglesValues, sender);
+        });
         saveToggle->setID("save-toggle"_spr);
         saveMenu->addChild(saveToggle);
 
@@ -69,14 +75,16 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
         saveLabel->setScale(0.3f);
         saveLabel->setID("save-label"_spr);
         saveMenu->addChild(saveLabel);
-
-        this->getButtonMenu()->addChild(saveMenu);
+        menu->addChild(saveMenu);
 
         // load menu
-        auto loadMenu = CCMenu::create();
+        auto loadMenu = CCNode::create();
         loadMenu->setID("load-menu"_spr);
 
-        loadToggle = CCMenuItemToggler::createWithStandardSprites(this, menu_selector(GDriveBackupSettingNode::onLoadToggle), .5f);
+        loadToggle = geode::Toggler::createWithStandardSprites(.5f, [this](geode::Toggler *sender, bool isToggled) {
+            togglesValues.load = isToggled;
+            this->setValue(togglesValues, sender);
+        });
         loadToggle->setID("load-toggle"_spr);
         loadMenu->addChild(loadToggle);
 
@@ -84,10 +92,10 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
         loadLabel->setScale(0.3f);
         loadLabel->setID("load-label"_spr);
         loadMenu->addChild(loadLabel);
+        menu->addChild(loadMenu);
 
-        this->getButtonMenu()->addChild(loadMenu);
-
-        this->getButtonMenu()->setContentHeight(30.f);
+        menu->setPositionX(menu->getPositionX() - 2.7f);
+        menu->setContentHeight(30.f);
         saveMenu->setContentHeight(30.f);
         loadMenu->setContentHeight(30.f);
 
@@ -100,10 +108,24 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
 
         saveMenu->setLayout(menuLayout);
         loadMenu->setLayout(menuLayout);
-
-        this->getButtonMenu()->setLayout(RowLayout::create()->setAxisAlignment(AxisAlignment::End)->setGap(30.f));
+        menu->setLayout(RowLayout::create()
+                            ->setAxisAlignment(AxisAlignment::End)
+                            ->setGap(30.f));
 
         this->updateState(nullptr);
+
+        // set toggle ui state
+        for (auto value : {
+                 std::make_pair(this->getValue().saveToggleEnabled, saveToggle),
+                 std::make_pair(this->getValue().loadToggleEnabled, loadToggle),
+             })
+        {
+            value.second->setEnabled(value.first);
+            value.second->setCascadeColorEnabled(true);
+            value.second->setCascadeOpacityEnabled(true);
+            value.second->setOpacity(value.first ? 255 : 155);
+            value.second->setColor(value.first ? ccWHITE : ccGRAY);
+        }
 
         return true;
     }
@@ -111,50 +133,18 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
     void updateState(CCNode *invoker) override
     {
         SettingValueNodeV3::updateState(invoker);
-        // auto shouldEnable = this->getSetting()->shouldEnable();
 
         togglesValues = this->getValue();
-        saveToggle->toggle(togglesValues.save);
-        loadToggle->toggle(togglesValues.load);
+        saveToggle->setToggled(togglesValues.save, false);
+        loadToggle->setToggled(togglesValues.load, false);
 
         log::debug("save {} & load {}", togglesValues.save, togglesValues.load);
-        // saveToggle->setEnabled(shouldEnable);
-        // saveToggle->setCascadeColorEnabled(true);
-        // saveToggle->setCascadeOpacityEnabled(true);
-        // saveToggle->setOpacity(shouldEnable ? 255 : 155);
-        // saveToggle->setColor(shouldEnable ? ccWHITE : ccGRAY);
-
-        
-        // loadToggle->setEnabled(shouldEnable);
-        // loadToggle->setCascadeColorEnabled(true);
-        // loadToggle->setCascadeOpacityEnabled(true);
-        // loadToggle->setOpacity(shouldEnable ? 255 : 155);
-        // loadToggle->setColor(shouldEnable ? ccWHITE : ccGRAY);
-    }
-
-    void onSaveToggle(CCObject *sender)
-    {
-        auto toggle = static_cast<CCMenuItemToggler *>(sender);
-        togglesValues.save = !toggle->m_toggled;
-        this->setValue(togglesValues, toggle);
-
-        log::debug("save: {}", togglesValues.save);
-    }
-
-    void onLoadToggle(CCObject *sender)
-    {
-        auto toggle = static_cast<CCMenuItemToggler *>(sender);
-        togglesValues.load = !toggle->m_toggled;
-        this->setValue(togglesValues, toggle);
-
-                log::debug("load: {}", togglesValues.load);
-
     }
 
   public:
-    static GDriveBackupSettingNode *create(std::shared_ptr<GDriveBackupSetting> setting, float width)
+    static GDriveSaveTogglesNode *create(std::shared_ptr<GDriveSaveToggles> setting, float width)
     {
-        auto ret = new GDriveBackupSettingNode();
+        auto ret = new GDriveSaveTogglesNode();
         if (ret && ret->init(setting, width))
         {
             ret->autorelease();
@@ -165,14 +155,14 @@ class GDriveBackupSettingNode : public SettingValueNodeV3<GDriveBackupSetting>
     }
 };
 
-SettingNodeV3 *GDriveBackupSetting::createNode(float width)
+SettingNodeV3 *GDriveSaveToggles::createNode(float width)
 {
-    return GDriveBackupSettingNode::create(std::static_pointer_cast<GDriveBackupSetting>(shared_from_this()), width);
+    return GDriveSaveTogglesNode::create(std::static_pointer_cast<GDriveSaveToggles>(shared_from_this()), width);
 }
 
 $execute
 {
-    auto ret = Mod::get()->registerCustomSettingType("gdrive-backup-setting", &GDriveBackupSetting::parse);
+    auto ret = Mod::get()->registerCustomSettingType("gdrive-save-toggles", &GDriveSaveToggles::parse);
     if (!ret)
     {
         log::error("Unable to register setting type: {}", ret.unwrapErr());

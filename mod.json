@@ -81,8 +81,8 @@
 			"name": "Advanced Settings"
 		},
 		"save2-gm": {
-			"type": "custom:gdrive-backup-setting",
-			"default": {"save": false, "load": false}
+			"type": "custom:gdrive-save-toggles",
+			"default": {"save": false, "load": false, "saveToggleEnabled": false}
 		},
 		"save-gm": {
 			"type": "bool",
