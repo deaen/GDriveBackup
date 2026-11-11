@@ -58,8 +58,8 @@ class GDriveManager : public cocos2d::CCObject
     arc::Future<bool> deleteFile(const int slot);
     arc::Future<bool> uploadSave(const int slot, web::WebRequest responseReq, const std::string_view GMData = "", const std::string_view LLMData = "");
     bool loadGameManagerData(const std::string_view GMdata);
-    bool loadLocalLevelsManagerData(const std::string_view LLMdata);
-    arc::Future<bool> loadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, slotType saveFileType = slotType::Old, ByteVector saveFile = {});
+    bool loadLocalLevelManagerData(const std::string_view LLMdata);
+    arc::Future<bool> downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, slotType saveFileType = slotType::Old, ByteVector saveFile = {});
     arc::Future<std::optional<saveInformation>> getSaveInfo(const int slot);
     arc::Future<std::optional<sizedata_map>> getSizeInfo();
 

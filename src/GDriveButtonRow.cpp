@@ -133,7 +133,7 @@ class GDriveButtonRowNode : public SettingNodeV3
                                     auto fileData = std::move(fileRes).unwrap();
 
                                     auto loadLayer = GDriveManager::getInstance()->getCurrentPopup()->showLoadLayer();
-                                    async::spawn(GDriveManager::getInstance()->loadSave(-1, web::WebRequest(), loadLayer, (filePath.extension() == ".gdbsave") ? GDriveManager::slotType::New : GDriveManager::slotType::Old, fileData), [](bool ok) {
+                                    async::spawn(GDriveManager::getInstance()->downloadSave(-1, web::WebRequest(), loadLayer, (filePath.extension() == ".gdbsave") ? GDriveManager::slotType::New : GDriveManager::slotType::Old, fileData), [](bool ok) {
                                         if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
                                             popup->hideLoadLayer();
 

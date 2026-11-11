@@ -341,9 +341,9 @@ void GDriveSlotBox::onSlotInfo(CCObject *sender)
         FLAlertLayer::create(
             fmt::format("Slot {} information", getSlot()).c_str(), // title
             "Data avaliable in this slot\n"
-            + fmt::format("Game & user data: {}", (info->GMData) ? "<cg>Available</c>" : "<cr>Missing</c>")
+            + fmt::format("Game, user, & keybinds data: {}", (info->GMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Local levels: {}", (info->LLMData) ? "<cg>Available</c>" : "<cr>Missing</c>"),
+            + fmt::format("Local levels: {}", (info->LLMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>"),
             "OK"
             )
             ->show();

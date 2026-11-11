@@ -1,6 +1,7 @@
 #include "GDriveManager.hpp"
 #include "GDriveConsts.hpp"
 #include "GDriveEncrypt.hpp"
+#include "GDriveSaveToggles.hpp"
 #include <Geode/binding/LocalLevelManager.hpp>
 #include <Geode/utils/base64.hpp>
 #include <asp/fs/fs.hpp>
@@ -330,7 +331,7 @@ arc::Future<std::optional<std::pair<std::string, GDriveManager::slotType>>> GDri
         web::WebResponse res;
 
         // look for file
-        req.param("q", "((appProperties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or name='save-{}' or name='save-{}.dat') and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
+        req.param("q", "((properties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or name='save-{}' or name='save-{}.dat') and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
         req.param("orderBy", "modifiedTime");
         res = co_await req.get("https://www.googleapis.com/drive/v3/files");
 
@@ -338,6 +339,7 @@ arc::Future<std::optional<std::pair<std::string, GDriveManager::slotType>>> GDri
         {
             auto name = res.json().unwrapOrDefault()["files"][0].get<std::string>("name").unwrapOrDefault();
             auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+
             if (!id.empty())
             {
                 if (name == fmt::format("slot-{}.gdbsave", slot))
@@ -391,8 +393,9 @@ void GDriveManager::saveData(const int slot)
             m_saveQueue[slot]->setStatusPercentage(m_saveProgress + p.uploaded());
     });
 
-    std::string GMData = (Mod::get()->getSettingValue<bool>("save-gm")) ? GameManager::sharedState()->getCompressedSaveString() : "";
-    std::string LLMData = (Mod::get()->getSettingValue<bool>("save-llm")) ? LocalLevelManager::sharedState()->getCompressedSaveString() : "";
+    std::string GMData = (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").save) ? GameManager::sharedState()->getCompressedSaveString() : "";
+    std::string LLMData = (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").save) ? LocalLevelManager::sharedState()->getCompressedSaveString() : "";
+
     m_saveListener.spawn(uploadSave(slot, req, GMData, LLMData), [this, slot](bool ok) {
         if (m_saveQueue[slot])
         {
@@ -423,7 +426,7 @@ void GDriveManager::loadData(const int slot)
             loadLayer->setPercentage(m_loadProgress + p.downloaded());
     });
 
-    m_loadListener.spawn(loadSave(slot, req, loadLayer), [slot](bool ok) {
+    m_loadListener.spawn(downloadSave(slot, req, loadLayer), [slot](bool ok) {
         if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
             popup->hideLoadLayer();
 
@@ -450,7 +453,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     }
 
     auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot), *parentID, false);
-    if (fileID && !fileID->first.empty())
+    if (!fileID)
         fileID->first = "";
 
     // create zip
@@ -466,9 +469,8 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     {
         auto zip = std::move(zipRes).unwrap();
 
-        // Add GM & LLM — original checks preserved
-        bool GMres = (Mod::get()->getSettingValue<bool>("save-gm")) ? zip.add("CCGameManager.dat", GMData).isOk() : true;
-        bool LLMres = (Mod::get()->getSettingValue<bool>("save-llm")) ? zip.add("CCLocalLevels.dat", LLMData).isOk() : true;
+        bool GMres = (GMData.empty()) ? true : zip.add("CCGameManager.dat", GMData).isOk();
+        bool LLMres = (LLMData.empty()) ? true : zip.add("CCLocalLevels.dat", LLMData).isOk();
 
         if (!GMres || !LLMres)
         {
@@ -509,7 +511,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     if (!GMData.empty())
         appProps.set(GDriveConsts::GMData, true);
     if (!LLMData.empty())
-        appProps.set(GDriveConsts::GMData, true);
+        appProps.set(GDriveConsts::LLMData, true);
     reqBody.set("properties", appProps);
 
     if (fileID->first.empty())
@@ -721,7 +723,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
     gm->m_playerGlow = gs.getBoolForKey("playerGlow");
 
     // setting game variables
-    if (Mod::get()->getSettingValue<bool>("load-game-options"))
+    if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").load)
     {
         for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(gs.getDictForKey("valueKeeper", false)))
         {
@@ -731,18 +733,20 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
             auto vint = value->intValue();
             auto kname = utils::string::remove(key, "gv_");
             auto kint = numFromString<int>(kname).unwrapOrDefault();
+
+            // options to skip
             switch (kint)
             {
-            case 0:
-            case 23:
-            case 25:
-            case 28:
-            case 30:
-            case 32:
-            case 115:
-            case 116:
-            case 122:
-            case 168:
+            case 0:   // doesnt exist
+            case 23:  // smooth fix
+            case 25:  // windowed mode
+            case 28:  // disable thumbstick
+            case 30:  // vsync
+            case 32:  //  force timer
+            case 115: // show fps
+            case 116: // custom fps
+            case 122: // menu music
+            case 168: // fast menu
                 continue;
             }
 
@@ -753,11 +757,23 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
         }
     }
 
+    if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").load)
+    {
+        auto bindBlob = gs.getStringForKey("GJKB_Binds");
+        if (!bindBlob.empty())
+            GJKeybindManager::sharedState()->parseBindsBlob(bindBlob, true, nullptr, nullptr);
+    }
+
+    log::debug("MDLM_001: {}", gs.getDictForKey("MDLM_001", false));
+    log::debug("MDLM_002: {}", gs.getFloatForKey("MDLM_002"));
+    log::debug("MDLM_003: {}", gs.getDictForKey("MDLM_003", false));
+
     return true;
 }
 
-bool GDriveManager::loadLocalLevelsManagerData(const std::string_view LLMdata)
+bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMdata)
 {
+
     auto llm = LocalLevelManager::sharedState();
     std::string llms(LLMdata.data());
     llm->loadFromCompressedString(llms);
@@ -765,7 +781,7 @@ bool GDriveManager::loadLocalLevelsManagerData(const std::string_view LLMdata)
     return true;
 }
 
-arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveManager::slotType saveFileType, ByteVector saveFile)
+arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveManager::slotType saveFileType, ByteVector saveFile)
 {
     if (saveFile.empty())
     {
@@ -898,7 +914,7 @@ arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest respon
     }
     else
         m_loadTotal = saveFile.size();
-    
+
     std::string GMData;
     std::string LLMData;
     if (saveFileType == GDriveManager::slotType::New)
@@ -916,7 +932,7 @@ arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest respon
 
         auto unzip = std::move(unzipRes).unwrap();
 
-        if (Mod::get()->getSettingValue<bool>("load-gm") && unzip.hasEntry(GMPath))
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").load && unzip.hasEntry(GMPath))
         {
             auto GMres = unzip.extract(GMPath);
             if (GMres)
@@ -932,8 +948,9 @@ arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest respon
             }
         }
 
-        if (Mod::get()->getSettingValue<bool>("load-llm") && unzip.hasEntry(LLMPath))
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").load && unzip.hasEntry(LLMPath))
         {
+
             auto LLMres = unzip.extract(LLMPath);
             if (LLMres)
             {
@@ -960,9 +977,9 @@ arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest respon
             co_return false;
         }
 
-        if (Mod::get()->getSettingValue<bool>("load-gm"))
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").load)
             GMData = strings[0];
-        if (Mod::get()->getSettingValue<bool>("load-llm"))
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").load)
             LLMData = strings[1];
     }
 
@@ -971,7 +988,7 @@ arc::Future<bool> GDriveManager::loadSave(const int slot, web::WebRequest respon
         if (!GMData.empty())
             loadGameManagerData(GMData);
         if (!LLMData.empty())
-            loadLocalLevelsManagerData(LLMData);
+            loadLocalLevelManagerData(LLMData);
     });
 
     co_return true;
@@ -1220,8 +1237,8 @@ arc::Future<std::optional<GDriveManager::saveInformation>> GDriveManager::getSav
         {
             auto props = res.json().unwrapOrDefault().get<matjson::Value>("properties").unwrapOrDefault();
 
-                info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
-                info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
+            info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
+            info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
         }
         else
             co_return std::nullopt;
@@ -1256,7 +1273,6 @@ arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevision
         if (res.ok())
         {
             nextPageToken = res.json().unwrapOrDefault().get<std::string>("nextPageToken").unwrapOrDefault();
-            log::debug("{}", res.string());
         }
         else
         {

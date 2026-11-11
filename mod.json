@@ -78,41 +78,44 @@
 		},
 		"advanced-title": {
 			"type": "title",
-			"name": "Advanced Settings"
+			"name": "Backup Settings",
+			"description": "Manage which data to include in saves, and what to load from those saves! <cy>these options are local to this device, and aren't synced between devices.</c>"
 		},
-		"save2-gm": {
-			"type": "custom:gdrive-save-toggles",
-			"default": {"save": false, "load": false, "saveToggleEnabled": false}
+		"platformer-data": {
+			"name": "Platformer saves",
+			"description": "Platformer save data  <cc>(aka CCPlatformerSave.dat)</c> includes all your saved platformer levels checkpoints",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
-		"save-gm": {
-			"type": "bool",
-			"default": true,
-			"name": "Save Game Data",
-			"description": "Include CCGameManager.dat in backups"
+		"level-back-data": {
+			"name": "editor auto-backups",
+			"description": "Includes your auto-backup editor levels.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
-		"save-llm": {
-			"type": "bool",
-			"default": true,
-			"name": "Save Local Levels Data",
-			"description": "Include CCLocalLevels.dat in backups"
+		"game-options": {
+			"name": "Game & editor options",
+			"description": "Load game & editor options (such as quick keys, CBS, button rows, link controls, etc.)  <cc>Note that this doesn't load every single option, and mainly excludes graphics options.</c>",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": false, "loadToggleEnabled": true}
 		},
-		"load-gm": {
-			"type": "bool",
-			"default": true,
-			"name": "Load Game data",
-			"description": "Load CCGameManager.dat when loading backups"
+		"keybind-data": {
+			"name": "Custom keybinds",
+			"description": "Includes your custom keybinds.  <cc>This doesn't doesn't every single option, and mainly excludes graphics options.</c>",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": false, "loadToggleEnabled": true}
 		},
-		"load-llm": {
-			"type": "bool",
-			"default": true,
-			"name": "load Local Levels Data",
-			"description": "Load CCLocalLevels.dat when loading backups"
+		"llm-data": {
+			"name": "Level data",
+			"description": "Level data  <cc>(aka CCLocalLevels.dat)</c> includes your created & saved levels and lists.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
-		"load-game-options": {
-			"type": "bool",
-			"default": false,
-			"name": "Load game & editor options",
-			"description": "Enable loading your saved game & editor options (e.g. quick keys, CBS, button rows, link controls, etc.). <cy>This doesn't restore every single option, and mainly excludes graphics options.</c>"
+		"gm-data": {
+			"name": "Game data",
+			"description": "Game Data  <cc>(aka CCGameManager.dat)</c> includes data such as your stats, achievements, icons, options, keybinds, etc.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
 		"signout-button": {
 			"type": "custom:gdrive-button-row"
