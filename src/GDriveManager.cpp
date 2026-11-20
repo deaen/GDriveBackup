@@ -319,7 +319,7 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
     co_return std::nullopt;
 }
 
-arc::Future<std::optional<std::pair<std::string, GDriveManager::slotType>>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
+arc::Future<std::optional<std::pair<std::string, GDriveManager::slotInformation>>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
 {
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = (defparentID.empty()) ? co_await getUserFolderID(autoCreateFolder) : defparentID;
@@ -329,23 +329,35 @@ arc::Future<std::optional<std::pair<std::string, GDriveManager::slotType>>> GDri
         auto req = web::WebRequest();
         req.header("Authorization", fmt::format("Bearer {}", token));
         web::WebResponse res;
-
+        slotInformation info;
         // look for file
         req.param("q", "((properties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or name='save-{}' or name='save-{}.dat') and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
         req.param("orderBy", "modifiedTime");
+        req.param("fields", "files(properties,name,id)");
         res = co_await req.get("https://www.googleapis.com/drive/v3/files");
 
         if (res.ok())
         {
             auto name = res.json().unwrapOrDefault()["files"][0].get<std::string>("name").unwrapOrDefault();
             auto id = res.json().unwrapOrDefault()["files"][0].get<std::string>("id").unwrapOrDefault();
+            auto props = res.json().unwrapOrDefault()["files"][0].get<matjson::Value>("properties").unwrapOrDefault();
 
             if (!id.empty())
             {
+                log::debug("{}", res.string());
+                info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
+                info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
+                info.platformerSaves = (props.get<std::string_view>(GDriveConsts::platformerSaves).unwrapOrDefault() == "true") ? true : false;
+                info.gameOptions = (props.get<std::string_view>(GDriveConsts::gameOptions).unwrapOrDefault() == "true") ? true : false;
+                info.keybinds = (props.get<std::string_view>(GDriveConsts::keybinds).unwrapOrDefault() == "true") ? true : false;
+                info.editorBackups = (props.get<std::string_view>(GDriveConsts::editorBackups).unwrapOrDefault() == "true") ? true : false;
+                
                 if (name == fmt::format("slot-{}.gdbsave", slot))
-                    co_return std::make_pair(id, GDriveManager::slotType::New);
+                    info.type = slotType::New;
                 else
-                    co_return std::make_pair(id, GDriveManager::slotType::Old);
+                    info.type = slotType::Old;
+
+                co_return std::make_pair(id, info);
             }
             else
             {
@@ -393,10 +405,7 @@ void GDriveManager::saveData(const int slot)
             m_saveQueue[slot]->setStatusPercentage(m_saveProgress + p.uploaded());
     });
 
-    std::string GMData = (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").save) ? GameManager::sharedState()->getCompressedSaveString() : "";
-    std::string LLMData = (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").save) ? LocalLevelManager::sharedState()->getCompressedSaveString() : "";
-
-    m_saveListener.spawn(uploadSave(slot, req, GMData, LLMData), [this, slot](bool ok) {
+    m_saveListener.spawn(uploadSave(slot, req), [this, slot](bool ok) {
         if (m_saveQueue[slot])
         {
             m_saveQueue[slot]->setStatusVisiblity(false);
@@ -435,7 +444,7 @@ void GDriveManager::loadData(const int slot)
     });
 }
 
-arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest responseReq, const std::string_view GMData, const std::string_view LLMData)
+arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest responseReq)
 {
     co_await waitForMainThread([slot, this] {
         if (m_saveQueue[slot])
@@ -467,17 +476,99 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
         co_return false;
     }
 
+    // get gm and llm strings
+    std::optional<std::string> GMString = co_await async::waitForMainThread<std::string>([] {
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").save)
+        {
+            // get gm dict
+            DS_Dictionary GMDict;
+            GameManager::sharedState()->encodeDataTo(&GMDict);
+
+            // remove options if asked
+            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").save)
+            {
+                auto values = GMDict.getDictForKey("valueKeeper", false);
+                auto keys = CCArray::create();
+                for (auto [key, value] : CCDictionaryExt<std::string, CCString *>(values))
+                {
+                    if (key.contains("gv_"))
+                        keys->addObject(CCString::create(key));
+                }
+                values->removeObjectsForKeys(keys);
+                GMDict.removeKey("valueKeeper");
+                GMDict.setDictForKey("valueKeeper", values);
+            }
+
+            // remove keybinds if asked
+            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").save)
+                GMDict.removeKey("GJKB_Binds");
+
+            // remove plats if asked
+            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
+            {
+                auto levels = GMDict.getArrayForKey("GLM_03", false);
+                for (auto level : CCArrayExt<GJGameLevel *>(levels))
+                {
+                    if (!level->isPlatformer())
+                        continue;
+
+                    level->m_platformerSave = "";
+                    level->m_platformerSaveFormatVersion = 0;
+                    level->m_platformerSaveReplay = "";
+                    level->m_platformerSaveLevelVersion = 0;
+                }
+                GMDict.removeKey("GLM_03");
+                GMDict.setArrayForKey("GLM_03", levels);
+            }
+
+            return ZipUtils::compressString(GMDict.saveRootSubDictToString(), false, 11, 0);
+        }
+        else
+            return std::string();
+    });
+
+    std::optional<std::string> LLMString = co_await async::waitForMainThread<std::string>([] {
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").save)
+        {
+            // get llm dict
+            DS_Dictionary LLMDict;
+            LocalLevelManager::sharedState()->encodeDataTo(&LLMDict);
+
+            // remove plat saves from all levels
+            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
+            {
+                auto levels = LLMDict.getArrayForKey("LLM_01", false);
+                for (auto level : CCArrayExt<GJGameLevel *>(levels))
+                {
+                    if (!level->isPlatformer())
+                        continue;
+
+                    level->m_platformerSave = "";
+                    level->m_platformerSaveFormatVersion = 0;
+                    level->m_platformerSaveReplay = "";
+                    level->m_platformerSaveLevelVersion = 0;
+                }
+                LLMDict.removeKey("LLM_01");
+                LLMDict.setArrayForKey("LLM_01", levels);
+            }
+            return ZipUtils::compressString(LLMDict.saveRootSubDictToString(), false, 11, 0);
+        }
+        else
+            return std::string();
+    });
+
     {
         auto zip = std::move(zipRes).unwrap();
 
-        bool GMRes = (GMData.empty()) ? true : zip.add("CCGameManager.dat", GMData).isOk();
-        bool LLMRes = (LLMData.empty()) ? true : zip.add("CCLocalLevels.dat", LLMData).isOk();
-        bool backupRes;
+        bool GMRes = false;
+        if (GMString)
+            GMRes = (GMString->empty()) ? true : zip.add("CCGameManager.dat", *GMString).isOk();
 
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save)
-            backupRes = zip.addAllFrom(dirs::getSaveDir() / "auto_backups").isOk();
-        else
-            backupRes = true;
+        bool LLMRes = false;
+        if (LLMString)
+            LLMRes = (LLMString->empty()) ? true : zip.add("CCLocalLevels.dat", *LLMString).isOk();
+
+        bool backupRes = (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save) ? zip.addAllFrom(dirs::getSaveDir() / "auto_backups").isOk() : true;
 
         if (!GMRes || !LLMRes || !backupRes)
         {
@@ -515,10 +606,12 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     auto reqBody = matjson::makeObject({{"name", fmt::format("slot-{}.gdbsave", slot)}});
 
     reqBody.set("properties", matjson::makeObject({{"slotID", slot},
-                                                   {GDriveConsts::GMData.data(), !GMData.empty()},
-                                                   {GDriveConsts::LLMData.data(), !LLMData.empty()},
-                                                   {GDriveConsts::editorBackups.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save}
-                                                }));
+                                                   {GDriveConsts::GMData.data(), (GMString) ? !GMString->empty() : false},
+                                                   {GDriveConsts::LLMData.data(), (LLMString) ? !LLMString->empty() : false},
+                                                   {GDriveConsts::editorBackups.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save},
+                                                   {GDriveConsts::gameOptions.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").save},
+                                                   {GDriveConsts::keybinds.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").save},
+                                                   {GDriveConsts::platformerSaves.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save}}));
 
     if (fileID->first.empty())
     {
@@ -634,55 +727,66 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     co_return true;
 }
 
-bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
+bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 {
-    // make the level stats string...
-    DS_Dictionary gs;
-    gs.loadRootSubDictFromString(ZipUtils::decompressString(std::string(GMdata), false, 0));
+    DS_Dictionary GMDict;
+    GMDict.loadRootSubDictFromString(ZipUtils::decompressString(std::string(GMString), false, 0));
 
-    if (gs.getIntegerForKey("GJA_003") != GJAccountManager::sharedState()->m_accountID)
+    // dont load game data if mismatched account ID
+    if (GMDict.getIntegerForKey("GJA_003") != GJAccountManager::sharedState()->m_accountID)
     {
-        showError("User data load error", "Please make sure you're <cy>logged into the same account</c> that's on the save file to load stats\n<cl>(other data such as levels has been loaded)</c>", true, false);
+        showError("Game data load error", "Please make sure you're <cy>logged into the same account</c> that's on the save file to load stats\n<cl>(other data such as levels has been loaded)</c>", true, false);
         return false;
     }
+
+    auto levels = GMDict.getArrayForKey("GLM_03", false);
+
     std::string statsString;
-    auto levelDic = gs.getDictForKey("GLM_03", false);
     size_t levelCount = 0;
-    for (auto [id, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levelDic))
+
+    for (auto level : CCArrayExt<GJGameLevel>(levels))
     {
         if (level == nullptr)
             continue;
 
+        // create stats string
         if (levelCount != 0)
             statsString += ",";
-
-        statsString += id;
+        statsString += level->m_levelID;
         statsString += ("," + std::to_string(level->m_stars.value()));
-
         ++levelCount;
+
+        // remove plat if its plating
+        if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").load)
+        {
+            if (!level->isPlatformer())
+                continue;
+
+            level->m_platformerSave = "";
+            level->m_platformerSaveFormatVersion = 0;
+            level->m_platformerSaveReplay = "";
+            level->m_platformerSaveLevelVersion = 0;
+        }
     }
-    if (levelDic->count() != levelCount)
+    GMDict.removeKey("GLM_03");
+    GMDict.setArrayForKey("GLM_03", levels);
+
+    if (levels->count() != levelCount)
     {
         showError(fmt::format("Slot load failed"), "Can't get levels", false);
         return false;
     }
-
     // now lets make achievements silent
-    auto am = AchievementManager::sharedState();
-    bool oldDontNotify = am->m_dontNotify;
-    am->m_dontNotify = true;
+    auto AM = AchievementManager::sharedState();
+    bool oldDontNotify = AM->m_dontNotify;
+    AM->m_dontNotify = true;
 
-    // do whatever this is
-    auto gsm = GameStatsManager::sharedState();
-    bool oldSkipIncrementChallenge = gsm->m_skipIncrementChallenge;
-    gsm->m_skipIncrementChallenge = true;
-    gsm->preSaveGameStats();
-    gsm->m_usePlayerStatsCCDictionary = true;
-
-    // load gm data
-    auto gm = GameManager::sharedState();
-    std::string gms(GMdata.data());
-    gm->loadFromCompressedString(gms);
+    // & do whatever this is
+    auto GSM = GameStatsManager::sharedState();
+    bool oldSkipIncrementChallenge = GSM->m_skipIncrementChallenge;
+    GSM->m_skipIncrementChallenge = true;
+    GSM->preSaveGameStats();
+    GSM->m_usePlayerStatsCCDictionary = true;
 
     // i really really REALLY don't want to hardcode this but i can't think of something better if u know of a better solution PLEASE let me know
     std::string_view packsString = "1:1:3:11940,150245,215705:4:3:5:1|1:2:3:151245,61757,150906:4:4:5:1|1:3:3:59767,61982,65106:4:4:5:1|1:5:3:217631,3785,281148:4:5:5:1|1:6:3:167527,23420,88737:4:6:5:1|1:7:3:71485,77879,79275:4:6:5:1|1:8:3:8612,131259,85065:4:7:5:1|1:9:3:87960,116806,278956:4:8:5:1|1:10:3:269500,49229,169590:4:8:5:1|1:11:3:329929,188909,340602:4:9:5:1|1:19:3:341613,358750,369294:4:10:5:2|1:20:3:70059,10109,135561:4:10:5:2|1:21:3:57730,308891,102765:4:10:5:2|1:22:3:186646,13519,55520:4:10:5:2|1:26:3:199761,214523,130414:4:10:5:2|1:27:3:497514,380082,553327:4:10:5:2|1:28:3:541953,379772,449502:4:10:5:2|1:29:3:511533,350329,428765:4:10:5:2|1:30:3:393159,456678,396874:4:10:5:2|1:31:3:450920,316982,436624:4:10:5:2|1:32:3:490078,506009,513124:4:4:5:1|1:33:3:364445,411459,509393:4:5:5:1|1:34:3:422703,460862,124052:4:6:5:1|1:35:3:461472,516810,447766:4:8:5:1|1:36:3:456675,471354,457265:4:8:5:1|1:37:3:674454,750434,835854:4:5:5:1|1:38:3:809579,741941,577710:4:5:5:1|1:39:3:819956,540428,878743:4:6:5:1|1:40:3:714673,729521,661286:4:7:5:1|1:41:3:821459,692596,745177:4:8:5:1|1:42:3:857195,687938,804313:4:8:5:1|1:43:3:827829,664044,708901:4:8:5:1|1:44:3:882417,884256,551979:4:9:5:1|1:45:3:856066,862216,877915:4:6:5:1|1:46:3:874540,664867,700880:4:10:5:2|1:47:3:682941,897987,513137:4:10:5:2|1:48:3:776919,741635,735154:4:10:5:2|1:49:3:764038,897837,848722:4:10:5:2|1:50:3:840397,413504,839175:4:10:5:2|1:52:3:1512012,1602784,1649640:4:4:5:1|1:53:3:1244147,1389451,1642022:4:3:5:1|1:54:3:1314024,1629780,1721197:4:4:5:1|1:55:3:1446958,1063115,1734354:4:4:5:1|1:56:3:980341,1541962,1160937:4:5:5:1|1:57:3:1001204,1694003,1544084:4:6:5:1|1:58:3:1498893,1123276,1322487:4:7:5:1|1:59:3:1566116,946020,1100161:4:8:5:1|1:60:3:1350389,1215630,1724579:4:8:5:1|1:61:3:1267316,1670283,1205277:4:8:5:1|1:62:3:1447246,1132530,1683722:4:9:5:1|1:63:3:1728550,1799065,1311773:4:9:5:1|1:64:3:1018758,1326086,1698428:4:10:5:2|1:65:3:1668421,1703546,923264:4:10:5:2|1:66:3:1650666,1474319,1777565:4:10:5:2|1:67:3:4454123,11280109,6508283:4:2:5:1|1:68:3:10992098,9110646,9063899:4:3:5:1|1:69:3:8320596,2820124,8477262:4:3:5:1|1:70:3:5131543,8157377,8571598:4:4:5:1|1:71:3:12178580,11357573,11591917:4:4:5:1|1:72:3:4449079,6979485,10110092:4:4:5:1|1:73:3:13766381,13242284,13963465:4:4:5:1|1:74:3:8939774,9204593,6324840:4:5:5:1|1:75:3:7485599,5017264,6053464:4:5:5:1|1:76:3:13912771,12577409,11924846:4:5:5:1|1:77:3:3382569,3224853,3012870:4:6:5:1";
@@ -691,48 +795,40 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
     for (auto pack : CCArrayExt<GJMapPack *>(mapPacks))
     {
         if (pack->hasCompletedMapPack())
-            gsm->completedMapPack(pack);
+            GSM->completedMapPack(pack);
 
-        gsm->setStarsForMapPack(pack->m_packID, pack->m_stars);
+        GSM->setStarsForMapPack(pack->m_packID, pack->m_stars);
     }
 
+    auto GM = GameManager::sharedState();
+    GM->dataLoaded(&GMDict);
+
     // now we re count stats with the awesome string i made
-    gm->recountUserStats(statsString);
+    GM->recountUserStats(statsString);
 
     // do these things
-    gsm->verifyUserCoins();
-    gsm->tryFixPathBug();
-    gsm->verifyPathAchievements();
+    GSM->verifyUserCoins();
+    GSM->tryFixPathBug();
+    GSM->verifyPathAchievements();
 
     // and put everything back!
-    gsm->m_usePlayerStatsCCDictionary = false;
-    gsm->postLoadGameStats();
+    GSM->m_usePlayerStatsCCDictionary = false;
+    GSM->postLoadGameStats();
+    AM->m_dontNotify = oldDontNotify;
+    GSM->m_skipIncrementChallenge = oldSkipIncrementChallenge;
 
-    am->m_dontNotify = oldDontNotify;
-    gsm->m_skipIncrementChallenge = oldSkipIncrementChallenge;
-
-    // set every icon cuz they break sometimes lol
-    gm->m_playerFrame = gs.getIntegerForKey("playerFrame");
-    gm->m_playerShip = gs.getIntegerForKey("playerShip");
-    gm->m_playerBall = gs.getIntegerForKey("playerBall");
-    gm->m_playerBird = gs.getIntegerForKey("playerBird");
-    gm->m_playerDart = gs.getIntegerForKey("playerDart");
-    gm->m_playerRobot = gs.getIntegerForKey("playerRobot");
-    gm->m_playerSpider = gs.getIntegerForKey("playerSpider");
-    gm->m_playerSwing = gs.getIntegerForKey("playerSwing");
-    gm->m_playerColor = gs.getIntegerForKey("playerColor");
-    gm->m_playerColor2 = gs.getIntegerForKey("playerColor2");
-    gm->m_playerGlowColor = (gs.getIntegerForKey("playerColor3") == -1) ? gs.getIntegerForKey("playerColor2") : gs.getIntegerForKey("playerColor3");
-    gm->m_playerStreak = gs.getIntegerForKey("playerStreak");
-    gm->m_playerShipFire = gs.getIntegerForKey("playerShipStreak");
-    gm->m_playerDeathEffect = gs.getIntegerForKey("playerDeathEffect");
-    gm->m_playerJetpack = gs.getIntegerForKey("playerJetpack");
-    gm->m_playerGlow = gs.getBoolForKey("playerGlow");
+    // keybinds
+    if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").load)
+    {
+        auto bindBlob = GMDict.getStringForKey("GJKB_Binds");
+        if (!bindBlob.empty())
+            GJKeybindManager::sharedState()->parseBindsBlob(bindBlob, true, nullptr, nullptr);
+    }
 
     // setting game variables
     if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").load)
     {
-        for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(gs.getDictForKey("valueKeeper", false)))
+        for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(GMDict.getDictForKey("valueKeeper", false)))
         {
             if (!key.contains("gv_"))
                 continue;
@@ -758,27 +854,60 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
             }
 
             if (vint == 0 || vint == 1)
-                gm->setGameVariable(kname.c_str(), static_cast<bool>(vint));
+                GM->setGameVariable(kname.c_str(), static_cast<bool>(vint));
             else
-                gm->setIntGameVariable(kname.c_str(), vint);
+                GM->setIntGameVariable(kname.c_str(), vint);
         }
     }
 
-    if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").load)
-    {
-        auto bindBlob = gs.getStringForKey("GJKB_Binds");
-        if (!bindBlob.empty())
-            GJKeybindManager::sharedState()->parseBindsBlob(bindBlob, true, nullptr, nullptr);
-    }
+    // set every icon cuz they break sometimes lol
+    GM->m_playerFrame = GMDict.getIntegerForKey("playerFrame");
+    GM->m_playerShip = GMDict.getIntegerForKey("playerShip");
+    GM->m_playerBall = GMDict.getIntegerForKey("playerBall");
+    GM->m_playerBird = GMDict.getIntegerForKey("playerBird");
+    GM->m_playerDart = GMDict.getIntegerForKey("playerDart");
+    GM->m_playerRobot = GMDict.getIntegerForKey("playerRobot");
+    GM->m_playerSpider = GMDict.getIntegerForKey("playerSpider");
+    GM->m_playerSwing = GMDict.getIntegerForKey("playerSwing");
+    GM->m_playerColor = GMDict.getIntegerForKey("playerColor");
+    GM->m_playerColor2 = GMDict.getIntegerForKey("playerColor2");
+    GM->m_playerGlowColor = (GMDict.getIntegerForKey("playerColor3") == -1) ? GMDict.getIntegerForKey("playerColor2") : GMDict.getIntegerForKey("playerColor3");
+    GM->m_playerStreak = GMDict.getIntegerForKey("playerStreak");
+    GM->m_playerShipFire = GMDict.getIntegerForKey("playerShipStreak");
+    GM->m_playerDeathEffect = GMDict.getIntegerForKey("playerDeathEffect");
+    GM->m_playerJetpack = GMDict.getIntegerForKey("playerJetpack");
+    GM->m_playerGlow = GMDict.getBoolForKey("playerGlow");
+
     return true;
 }
 
-bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMdata)
+bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
 {
-
     auto llm = LocalLevelManager::sharedState();
-    std::string llms(LLMdata.data());
-    llm->loadFromCompressedString(llms);
+    DS_Dictionary LLMDict;
+
+    LLMDict.loadRootSubDictFromString(ZipUtils::decompressString(std::string(LLMString.data()), false, 0));
+
+    // remove plat saves from all levels
+    if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").load)
+    {
+        log::debug("HI");
+        auto levels = LLMDict.getArrayForKey("LLM_01", false);
+        for (auto level : CCArrayExt<GJGameLevel *>(levels))
+        {
+            if (!level->isPlatformer())
+                continue;
+
+            level->m_platformerSave = "";
+            level->m_platformerSaveFormatVersion = 0;
+            level->m_platformerSaveReplay = "";
+            level->m_platformerSaveLevelVersion = 0;
+        }
+        LLMDict.removeKey("LLM_01");
+        LLMDict.setArrayForKey("LLM_01", levels);
+    }
+
+    llm->dataLoaded(&LLMDict);
 
     return true;
 }
@@ -809,7 +938,7 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
             co_await waitForMainThread([this] { showError("Couldn't find file", "", false); });
             co_return false;
         }
-        saveFileType = fileID->second;
+        saveFileType = fileID->second.type;
 
         auto req = web::WebRequest();
         req.header("Authorization", fmt::format("Bearer {}", token));
@@ -1075,7 +1204,7 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
                 if (id.empty())
                     continue;
 
-                // Get File Size! I like copy Paste :) I am Evil This is Evil I am So Sorry
+                // Get File Size! I like copy Paste :) I AM Evil This is Evil I AM So Sorry
                 {
                     std::string nextPageToken;
                     do
@@ -1247,43 +1376,6 @@ arc::Future<bool> GDriveManager::deleteFile(const int slot)
         co_return false;
     }
     co_return true;
-}
-
-arc::Future<std::optional<GDriveManager::saveInformation>> GDriveManager::getSaveInfo(const int slot)
-{
-    saveInformation info;
-    auto fileID = co_await getFileID(slot, false);
-
-    if (!fileID)
-        co_return std::nullopt;
-
-    if (fileID->second == slotType::Old)
-    {
-        info.GMData = true;
-        info.LLMData = true;
-    }
-    else
-    {
-        auto token = co_await getAccessToken();
-        auto req = web::WebRequest();
-        req.header("Authorization", fmt::format("Bearer {}", token));
-        req.param("fields", "properties,name");
-
-        auto res = co_await req.get(fmt::format("https://www.googleapis.com/drive/v3/files/{}", fileID->first));
-
-        if (res.ok())
-        {
-            auto props = res.json().unwrapOrDefault().get<matjson::Value>("properties").unwrapOrDefault();
-
-            info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
-            info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
-            info.editorBackups = (props.get<std::string_view>(GDriveConsts::editorBackups).unwrapOrDefault() == "true") ? true : false;
-        }
-        else
-            co_return std::nullopt;
-    }
-
-    co_return info;
 }
 
 arc::Future<std::vector<GDriveManager::fileRevision>> GDriveManager::getRevisionList(const int slot)

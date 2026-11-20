@@ -334,18 +334,22 @@ void GDriveSlotBox::onSlotInfo(CCObject *sender)
     GDriveLoadLayer *layer = GDriveLoadLayer::create();
     layer->setMessage(fmt::format("Getting slot {}'s information...", getSlot()));
     layer->show();
-    async::spawn(GDriveManager::getInstance()->getSaveInfo(getSlot()), [layer, this](std::optional<GDriveManager::saveInformation> info) {
+    async::spawn(GDriveManager::getInstance()->getFileID(getSlot(), false), [layer, this](std::optional<std::pair<std::string, GDriveManager::slotInformation>> file) {
         layer->removeFromParent();
 
-        if(info){
+        if(file){
         FLAlertLayer::create(
             fmt::format("Slot {} information", getSlot()).c_str(), // title
             "Data avaliable in this slot\n"
-            + fmt::format("Game & user data: {}", (info->GMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + fmt::format("Game & user data: {}", (file->second.GMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Local levels: {}", (info->LLMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + fmt::format("Local levels: {}", (file->second.LLMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Editor auto-backups: {}", (info->editorBackups) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>"),
+            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + "\n"
+            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + "\n"
+            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>"),
             "OK"
             )
             ->show();

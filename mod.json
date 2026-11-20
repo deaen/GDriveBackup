@@ -1,5 +1,5 @@
 {
-	"geode": "6.0.0-alpha.2",
+	"geode": "6.0.0-alpha.3",
 	"gd": {
 		"win": "2.2091",
 		"android": "2.2091",
@@ -97,13 +97,13 @@
 			"name": "Game & editor options",
 			"description": "Load game & editor options (such as quick keys, CBS, button rows, link controls, etc.)  <cc>Note that this doesn't load every single option, and mainly excludes graphics options.</c>",
 			"type":"custom:gdrive-save-toggles",
-			"default":{"save": true, "load": true, "saveToggleEnabled": false, "loadToggleEnabled": true}
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
 		"keybind-data": {
 			"name": "Custom keybinds",
 			"description": "Includes your custom keybinds.  <cc>This doesn't doesn't every single option, and mainly excludes graphics options.</c>",
 			"type":"custom:gdrive-save-toggles",
-			"default":{"save": true, "load": true, "saveToggleEnabled": false, "loadToggleEnabled": true}
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
 		"llm-data": {
 			"name": "Level data",

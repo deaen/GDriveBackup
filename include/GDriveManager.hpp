@@ -34,10 +34,14 @@ class GDriveManager : public cocos2d::CCObject
         size_t size;
         bool keepForever;
     };
-    struct saveInformation
+    struct slotInformation
     {
+        slotType type;
         bool GMData = false;
         bool LLMData = false;
+        bool platformerSaves = false;
+        bool gameOptions= false;
+        bool keybinds = false;
         bool editorBackups = false;
     };
 
@@ -57,14 +61,13 @@ class GDriveManager : public cocos2d::CCObject
     arc::Future<bool> getMetadata();
     arc::Future<bool> setDescription(const std::string description, const int slot);
     arc::Future<bool> deleteFile(const int slot);
-    arc::Future<bool> uploadSave(const int slot, web::WebRequest responseReq, const std::string_view GMData = "", const std::string_view LLMData = "");
-    bool loadGameManagerData(const std::string_view GMdata);
-    bool loadLocalLevelManagerData(const std::string_view LLMdata);
+    arc::Future<bool> uploadSave(const int slot, web::WebRequest responseReq);
+    bool loadGameManagerData(const std::string_view GMString);
+    bool loadLocalLevelManagerData(const std::string_view LLMString);
     arc::Future<bool> downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, slotType saveFileType = slotType::Old, ByteVector saveFile = {});
-    arc::Future<std::optional<saveInformation>> getSaveInfo(const int slot);
     arc::Future<std::optional<sizedata_map>> getSizeInfo();
 
-    arc::Future<std::optional<std::pair<std::string, slotType>>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
+    arc::Future<std::optional<std::pair<std::string, slotInformation>>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
 
     arc::Future<std::vector<fileRevision>> getRevisionList(const int slot);
 
