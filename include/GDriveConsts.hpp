@@ -15,4 +15,6 @@ namespace GDriveConsts
     };
     inline constexpr std::string_view GMData = "GMData";
     inline constexpr std::string_view LLMData = "LLMData";
+    inline constexpr std::string_view editorBackups = "editorBackups";
+
 }

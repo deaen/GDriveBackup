@@ -81,7 +81,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
     m_slotTitle->setEnabled(false);
     m_slotTitle->setCommonFilter(CommonFilter::Any);
     m_slotTitle->setMaxCharCount(30);
-    m_slotTitle->getInputNode()->setMaxLabelScale(1.f);
+    m_slotTitle->setFontScale(.9f);
     m_slotTitle->setAnchorPoint({0.5f, 0.5f});
     m_slotTitle->setID("slot-title"_spr);
 
@@ -264,7 +264,7 @@ void GDriveSlotBox::updateStatus()
             float duration = 1.0f;
             auto action = CCRepeatForever::create(CCSequence::createWithTwoActions(CCFadeTo::create(duration, 55), CCFadeTo::create(duration, 255)));
             action->setTag(1);
-            m_slotTitle->getInputNode()->getTextLabel()->runAction(action);
+            m_slotTitle->getContentLabel()->runAction(action);
         }
 
         if (getEditMode())
@@ -341,9 +341,11 @@ void GDriveSlotBox::onSlotInfo(CCObject *sender)
         FLAlertLayer::create(
             fmt::format("Slot {} information", getSlot()).c_str(), // title
             "Data avaliable in this slot\n"
-            + fmt::format("Game, user, & keybinds data: {}", (info->GMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + fmt::format("Game & user data: {}", (info->GMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Local levels: {}", (info->LLMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>"),
+            + fmt::format("Local levels: {}", (info->LLMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + "\n"
+            + fmt::format("Editor auto-backups: {}", (info->editorBackups) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>"),
             "OK"
             )
             ->show();
@@ -423,7 +425,7 @@ void GDriveSlotBox::onConfirmTitle(CCObject *sender)
             updateInfo();
 
         m_menu->updateLayout();
-        m_slotTitle->setCallbackEnabled(true);
+        // m_slotTitle->setCallbackEnabled(true);
     });
 }
 
@@ -441,7 +443,7 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusSpinner->setContentSize({60.f, 60.f});
         m_statusSpinner->updateLayout();
 
-        m_slotTitle->getInputNode()->getTextLabel()->setOpacity(255);
+        m_slotTitle->getContentLabel()->setOpacity(255);
     }
     else
     {
@@ -508,8 +510,8 @@ void GDriveSlotBox::updateInfo()
         m_empty = false;
     }
 
-    m_slotTitle->getInputNode()->getTextLabel()->stopActionByTag(1);
-    m_slotTitle->getInputNode()->getTextLabel()->setOpacity(255);
+    m_slotTitle->getContentLabel()->stopActionByTag(1);
+    m_slotTitle->getContentLabel()->setOpacity(255);
 
     m_timeColumn->updateLayout();
     m_infoRow->updateLayout();

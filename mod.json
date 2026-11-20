@@ -1,5 +1,5 @@
 {
-	"geode": "6.0.0-alpha.1",
+	"geode": "6.0.0-alpha.2",
 	"gd": {
 		"win": "2.2091",
 		"android": "2.2091",
@@ -83,7 +83,7 @@
 		},
 		"platformer-data": {
 			"name": "Platformer saves",
-			"description": "Platformer save data  <cc>(aka CCPlatformerSave.dat)</c> includes all your saved platformer levels checkpoints",
+			"description": "Platformer save data  <cc>(aka CCPlatformerSave.dat)</c> includes all your saved platformer checkpoints",
 			"type":"custom:gdrive-save-toggles",
 			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},

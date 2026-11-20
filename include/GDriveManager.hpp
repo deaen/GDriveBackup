@@ -38,6 +38,7 @@ class GDriveManager : public cocos2d::CCObject
     {
         bool GMData = false;
         bool LLMData = false;
+        bool editorBackups = false;
     };
 
     void signin();

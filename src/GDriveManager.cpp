@@ -457,8 +457,8 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
         fileID->first = "";
 
     // create zip
-    const auto zipPath = Mod::get()->getSaveDir() / fmt::format("slot-{}.gdbsave", slot);
-    auto zipRes = file::Zip::create(zipPath);
+    const auto unzipPath = Mod::get()->getSaveDir() / fmt::format("slot-{}.gdbsave", slot);
+    auto zipRes = file::Zip::create(unzipPath);
     if (!zipRes)
     {
         co_await waitForMainThread([this] {
@@ -466,24 +466,31 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
         });
         co_return false;
     }
+
     {
         auto zip = std::move(zipRes).unwrap();
 
-        bool GMres = (GMData.empty()) ? true : zip.add("CCGameManager.dat", GMData).isOk();
-        bool LLMres = (LLMData.empty()) ? true : zip.add("CCLocalLevels.dat", LLMData).isOk();
+        bool GMRes = (GMData.empty()) ? true : zip.add("CCGameManager.dat", GMData).isOk();
+        bool LLMRes = (LLMData.empty()) ? true : zip.add("CCLocalLevels.dat", LLMData).isOk();
+        bool backupRes;
 
-        if (!GMres || !LLMres)
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save)
+            backupRes = zip.addAllFrom(dirs::getSaveDir() / "auto_backups").isOk();
+        else
+            backupRes = true;
+
+        if (!GMRes || !LLMRes || !backupRes)
         {
             co_await waitForMainThread([this] {
                 showError("Couldn't add save file(s),", "please try again", false);
             });
-            log::warn("GMres: {}\nLLMres: {}", GMres, LLMres);
+            log::warn("GMRes: {}\nLLMRes: {}\nbackupRes: {}", GMRes, LLMRes, backupRes);
 
             co_return false;
         }
     }
 
-    auto zipDataRes = file::readBinary(zipPath);
+    auto zipDataRes = file::readBinary(unzipPath);
     if (!zipDataRes)
     {
         co_await waitForMainThread([this] {
@@ -507,12 +514,11 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     web::WebResponse res;
     auto reqBody = matjson::makeObject({{"name", fmt::format("slot-{}.gdbsave", slot)}});
 
-    auto appProps = matjson::makeObject({{"slotID", slot}});
-    if (!GMData.empty())
-        appProps.set(GDriveConsts::GMData, true);
-    if (!LLMData.empty())
-        appProps.set(GDriveConsts::LLMData, true);
-    reqBody.set("properties", appProps);
+    reqBody.set("properties", matjson::makeObject({{"slotID", slot},
+                                                   {GDriveConsts::GMData.data(), !GMData.empty()},
+                                                   {GDriveConsts::LLMData.data(), !LLMData.empty()},
+                                                   {GDriveConsts::editorBackups.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save}
+                                                }));
 
     if (fileID->first.empty())
     {
@@ -620,7 +626,8 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
         }
     }
 
-    auto remZip = asp::fs::removeFile(zipPath);
+    // delete zip
+    auto remZip = asp::fs::removeFile(unzipPath);
     m_metadataMap[slot]["timestamp"] = std::to_string(std::time(nullptr));
     m_metadataMap[slot]["size"] = std::to_string(m_saveTotal);
 
@@ -763,11 +770,6 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMdata)
         if (!bindBlob.empty())
             GJKeybindManager::sharedState()->parseBindsBlob(bindBlob, true, nullptr, nullptr);
     }
-
-    log::debug("MDLM_001: {}", gs.getDictForKey("MDLM_001", false));
-    log::debug("MDLM_002: {}", gs.getFloatForKey("MDLM_002"));
-    log::debug("MDLM_003: {}", gs.getDictForKey("MDLM_003", false));
-
     return true;
 }
 
@@ -919,51 +921,87 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
     std::string LLMData;
     if (saveFileType == GDriveManager::slotType::New)
     {
-        const auto GMPath = "CCGameManager.dat";
-        const auto LLMPath = "CCLocalLevels.dat";
-        auto unzipRes = file::Unzip::create(saveFile);
-        if (!unzipRes)
-        {
-            co_await waitForMainThread([this] {
-                showError("Couldn't read save file,", "please try again", false);
-            });
-            co_return false;
-        }
+        const auto GMName = "CCGameManager.dat";
+        const auto LLMName = "CCLocalLevels.dat";
+        const auto backupsName = "auto_backups";
+        const auto unzipPath = Mod::get()->getSaveDir() / fmt::format("slot-{}-temp", slot);
+        const auto backupsPath = dirs::getSaveDir() / backupsName;
 
-        auto unzip = std::move(unzipRes).unwrap();
-
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").load && unzip.hasEntry(GMPath))
         {
-            auto GMres = unzip.extract(GMPath);
-            if (GMres)
-            {
-                auto GMvec = std::move(GMres).unwrap();
-                GMData = std::string(GMvec.begin(), GMvec.end());
-            }
-            else
+            auto unzipRes = file::Unzip::create(saveFile);
+            if (!unzipRes)
             {
                 co_await waitForMainThread([this] {
-                    showError("Couldn't read CCGameManger", "", false);
+                    showError("Couldn't read save file,", "please try again", false);
                 });
+                co_return false;
+            }
+            auto unzip = std::move(unzipRes).unwrap().extractAllTo(unzipPath);
+            if (!unzipRes || !unzip)
+            {
+                co_await waitForMainThread([this] {
+                    showError("Couldn't read save file,", "please try again", false);
+                });
+                co_return false;
             }
         }
 
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").load && unzip.hasEntry(LLMPath))
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").load && asp::fs::exists(unzipPath / GMName))
+        {
+            auto GMRes = file::readString(unzipPath / GMName);
+            if (GMRes)
+                GMData = *GMRes;
+            else
+                co_await waitForMainThread([this, &GMRes] {
+                    showError("Couldn't read CCGameManger", GMRes.err()->toString(), false);
+                });
+        }
+
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").load && asp::fs::exists(unzipPath / LLMName))
         {
 
-            auto LLMres = unzip.extract(LLMPath);
-            if (LLMres)
-            {
-                auto LLMvec = std::move(LLMres).unwrap();
-                LLMData = std::string(LLMvec.begin(), LLMvec.end());
-            }
+            auto LLMRes = file::readString(unzipPath / LLMName);
+            if (LLMRes)
+                LLMData = *LLMRes;
             else
-            {
                 co_await waitForMainThread([this] {
                     showError("Couldn't read CCLocalLevels", "", false);
                 });
-            }
         }
+
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").load && asp::fs::exists(unzipPath / backupsName))
+        {
+            // manually moving files cuz asp::fs::copy just wont work with directories for some reason
+            auto createRes = asp::fs::createDirAll(backupsPath);
+
+            if (auto backupsIter = asp::fs::iterDir(unzipPath / backupsName))
+            {
+                for (auto result : *backupsIter)
+                {
+                    if (!result)
+                    {
+                        log::warn("couldnt get this auto_backups file: {}", result.err());
+                        continue;
+                    }
+                    auto file = result.unwrap();
+                    if (file.isFile())
+                    {
+                        auto copyRes = asp::fs::copy(file.path, backupsPath / *file.path.filename());
+                        if (!copyRes && copyRes.err()->kind() != asp::fs::ErrorKind::AlreadyExists)
+                        {
+                            log::warn("couldnt copy this auto_backups file: {}", copyRes.err());
+                            continue;
+                        }
+                    }
+                }
+            }
+            else
+                co_await waitForMainThread([this] {
+                    showError("Couldn't copy auto_backups", "", false);
+                });
+        }
+
+        auto remuUnzip = asp::fs::removeDirAll(unzipPath);
     }
     else
     {
@@ -1239,6 +1277,7 @@ arc::Future<std::optional<GDriveManager::saveInformation>> GDriveManager::getSav
 
             info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
             info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
+            info.editorBackups = (props.get<std::string_view>(GDriveConsts::editorBackups).unwrapOrDefault() == "true") ? true : false;
         }
         else
             co_return std::nullopt;
