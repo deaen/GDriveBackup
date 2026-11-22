@@ -16,6 +16,21 @@ class GDriveManager : public cocos2d::CCObject
     void operator=(GDriveManager const &) = delete;
     static GDriveManager *getInstance();
 
+    
+    enum class Status
+    {
+        Idle,
+        Waiting,
+        Working
+    };
+    struct fileRevision
+    {
+        std::string id;
+        std::string time;
+        size_t size;
+        bool keepForever;
+    };
+
     void signin();
     void verify();
     void signout(bool openAgain);
@@ -24,26 +39,22 @@ class GDriveManager : public cocos2d::CCObject
     void loadMetadata(const int slot);
     void loadData(const int slot);
 
-    arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByAccountiD, const std::string accountiD = "", const std::string parentID = "");
-    arc::Future<std::optional<std::string>> createFolder(const std::string name, const std::string accountiD = "", const std::string parentID = "");
-    arc::Future<bool> renameFolder(const std::string fileID, const std::string name, const std::string accountiD);
+    arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByaccountID, const std::string accountID = "", const std::string parentID = "");
+    arc::Future<std::optional<std::string>> createFolder(const std::string name, const std::string accountID = "", const std::string parentID = "");
+    arc::Future<bool> renameFolder(const std::string fileID, const std::string name, const std::string accountID);
     arc::Future<std::optional<std::string>> getMainFolderID(const bool autoCreate = true);
     arc::Future<std::optional<std::string>> getUserFolderID(const bool autoCreate = true);
-    arc::Future<std::optional<std::string>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
     arc::Future<bool> getMetadata();
     arc::Future<bool> setDescription(const std::string description, const int slot);
     arc::Future<bool> deleteFile(const int slot);
-    arc::Future<bool> saveString(const std::string data, const int slot, web::WebRequest responseReq);
-    arc::Future<bool> loadString(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer);
+    arc::Future<bool> uploadSave(const int slot, web::WebRequest responseReq);
+    bool loadGameManagerData(const std::string_view GMString);
+    bool loadLocalLevelManagerData(const std::string_view LLMString);
+    arc::Future<bool> downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveConsts::slotType saveFileType = GDriveConsts::slotType::Old, ByteVector saveFile = {});
     arc::Future<std::optional<sizedata_map>> getSizeInfo();
 
-    struct fileRevision
-    {
-        std::string id;
-        std::string time;
-        size_t size;
-        bool keepForever;
-    };
+    arc::Future<std::optional<std::pair<std::string, GDriveConsts::slotInformation>>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
+
     arc::Future<std::vector<fileRevision>> getRevisionList(const int slot);
 
     void setCurrentPopup(GDrivePopup *popup);
@@ -56,17 +67,10 @@ class GDriveManager : public cocos2d::CCObject
     arc::Future<std::string> getAccessToken();
     arc::Future<std::string> getEmail();
 
-    void showError(const std::string_view title = "GDriveBackup", const std::string_view error = "", bool invasive = true);
+    void showError(const std::string_view title = "GDriveBackup", const std::string_view error = "", bool invasive = true, const bool includeDefaultBody = true);
 
     void addToQueue(GDriveSlotBox *box);
     void removeFromQueue(const int slot);
-
-    enum Status
-    {
-        Idle,
-        Waiting,
-        Working
-    };
 
     Status checkStatus(GDriveSlotBox *box);
     void removeBoxPointer(const int slot);

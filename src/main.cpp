@@ -11,13 +11,12 @@ struct GDriveMain
     {
         GDrivePopup::create();
         /* Update popup */
-        if (!Mod::get()->setSavedValue("shown-v1.3.0-popup", true) && !Mod::get()->getSavedValue<bool>("new-user", false))
+        if (!Mod::get()->setSavedValue("shown-v1.4.0-popup", true) && !Mod::get()->getSavedValue<bool>("new-user", false))
         {
-            FLAlertLayer::create(
-                "update v1.3.0",
-                "new update!! check it out:\n- <cy>New Edit mode!</c>\n- <cy> New size information menu!</c>\n- <cy>New drive icon option!</c>\n- <cy>Lots of bug fixes & optimizations!</c>\n thank you for using this mod! :D",
-                "Okay")
-                ->show();
+            createQuickPopup(
+                "update v1.4.0",
+                "New update! added support to save & load:\n- <cy>platformer saves</c>\n- <cy>editor levels auto-backups</c>\n- <cy>custom keybinds</c>\n- and <cy>game & editor options</c>!\nyou can set these in the <cg>mod settings</c> at the bottom right of this menu, there's also more new things, so check out the full changelog!\n <cp>thank you for using this mod! :D</c>",
+                "Okay", nullptr, 400.f, nullptr);
         }
     }
 };

@@ -75,19 +75,19 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
     m_menu->setID("menu"_spr);
 
     /* Title */
-    m_slotTitle = TextInput::create(this->getContentWidth(), "enter slot title", "bigFont.fnt");
+    m_slotTitle = TextInput::create(this->getContentWidth(), "enter title", "bigFont.fnt");
     m_slotTitle->setString(fmt::format("Slot {}", getSlot()));
     m_slotTitle->hideBG();
     m_slotTitle->setEnabled(false);
     m_slotTitle->setCommonFilter(CommonFilter::Any);
     m_slotTitle->setMaxCharCount(30);
-    m_slotTitle->getInputNode()->setMaxLabelScale(1.f);
+    m_slotTitle->setFontScale(.9f);
     m_slotTitle->setAnchorPoint({0.5f, 0.5f});
     m_slotTitle->setID("slot-title"_spr);
 
     /* Info Row */
     m_infoRow = CCNode::create();
-    m_infoRow->setContentWidth(m_menu->getScaledContentWidth() + 17.f);
+    m_infoRow->setContentWidth(width + 17.f);
     m_infoRow->setAnchorPoint({0.5f, 0.5f});
     m_infoRow->setID("info-row"_spr);
 
@@ -129,34 +129,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
 
     m_infoRow->setLayout(RowLayout::create()->setAutoScale(true)->setAxisAlignment(AxisAlignment::Center));
 
-    /* Edit Menu */
-    m_editMenu = CCMenu::create();
-    m_editMenu->setLayout(ColumnLayout::create()->setGap(0)->setAxisAlignment(AxisAlignment::End));
-    m_editMenu->setID("edit-menu"_spr);
-    m_editMenu->setScale(0.45f);
-    m_editMenu->setAnchorPoint({.5f, 1.f});
-    this->addChildAtPosition(m_editMenu, Anchor::TopLeft, {10.f, 8.f});
-
-    /* Title Button */
-    m_titleButton = CCMenuItemSpriteExtra::create(CircleButtonSprite::create(CCLabelBMFont::create("A", "bigFont.fnt"), CircleBaseColor::Green, CircleBaseSize::Small), this, menu_selector(GDriveSlotBox::onConfirmTitle));
-    m_titleButton->setID("title-button"_spr);
-    m_editMenu->addChild(m_titleButton);
-
-    /* Delete Button */
-    m_deleteButton = CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_deleteSongBtn_001.png"), this, menu_selector(GDriveSlotBox::onDelete));
-    m_deleteButton->setID("delete-button"_spr);
-    m_editMenu->addChild(m_deleteButton);
-
-    /* Loading Spinner */
-    m_editSpinner = LoadingSpinner::create(40.f);
-    m_editSpinner->setID("edit-spinner"_spr);
-    m_editMenu->addChild(m_editSpinner);
-
-    m_titleButton->setVisible(false);
-    m_deleteButton->setVisible(false);
-    m_editSpinner->setVisible(false);
     m_menu->setLayout(ColumnLayout::create()->setAxisReverse(true)->setAutoScale(true)->setAxisAlignment(AxisAlignment::Between));
-
     /* Add children to m_menu */
     m_menu->addChild(m_slotTitle);
     m_menu->addChild(m_infoRow);
@@ -164,19 +137,19 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
     /* Separator */
     m_separator = NineSlice::createWithSpriteFrameName("floorLine_01_001.png");
     m_separator->setInsetLeft(m_separator->getContentWidth() / 3);
-    m_separator->setContentSize({m_menu->getScaledContentWidth(), 1.f});
+    m_separator->setContentSize({width, 1.f});
     m_separator->setID("separator"_spr);
     m_menu->addChild(m_separator);
 
     /* Save Button */
-    m_saveButtonSprite = ButtonSprite::create("Save", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_01.png");
+    m_saveButtonSprite = ButtonSprite::create("Save", width, width, 1.f, false, "goldFont.fnt", "GJ_button_01.png");
     m_saveButton = CCMenuItemSpriteExtra::create(m_saveButtonSprite, this, menu_selector(GDriveSlotBox::onSave));
     m_saveButton->setID("save-button"_spr);
     m_saveButton->m_scaleMultiplier = 1.1f;
     m_menu->addChild(m_saveButton);
 
     /* Load Button */
-    m_loadButtonSprite = ButtonSprite::create("Load", m_menu->getScaledContentWidth(), m_menu->getScaledContentWidth(), 1.f, false, "goldFont.fnt", "GJ_button_01.png");
+    m_loadButtonSprite = ButtonSprite::create("Load", width, width, 1.f, false, "goldFont.fnt", "GJ_button_01.png");
     m_loadButton = CCMenuItemSpriteExtra::create(m_loadButtonSprite, this, menu_selector(GDriveSlotBox::onLoad));
     m_loadButton->setID("load-button"_spr);
     m_loadButton->m_scaleMultiplier = 1.1f;
@@ -204,6 +177,48 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
     m_statusSpinner->setID("status-spinner"_spr);
     m_menu->addChild(m_statusSpinner);
 
+    /* Edit Menu */
+    m_editMenu = CCNode::create();
+    m_editMenu->setContentSize({width, 95.f});
+    m_editMenu->setID("edit-menu"_spr);
+    m_menu->addChild(m_editMenu);
+
+    auto firstEditRow = CCMenu::create();
+    firstEditRow->setContentWidth(width);
+    firstEditRow->setID("first-edit-row"_spr);
+    m_editMenu->addChild(firstEditRow);
+
+    auto secondEditRow = CCMenu::create();
+    secondEditRow->setContentWidth(width);
+    secondEditRow->setID("second-edit-row"_spr);
+    m_editMenu->addChild(secondEditRow);
+
+    /* Delete Button */
+    m_deleteButton = CCMenuItemSpriteExtra::create(CCSprite::create("editDeleteBtn.png"_spr), this, menu_selector(GDriveSlotBox::onDelete));
+    m_deleteButton->setID("delete-button"_spr);
+    firstEditRow->addChild(m_deleteButton);
+
+    /* Title Button */
+    m_titleButton = CCMenuItemSpriteExtra::create(CCSprite::create("editRenameBtn.png"_spr), this, menu_selector(GDriveSlotBox::onConfirmTitle));
+    m_titleButton->setID("title-button"_spr);
+    firstEditRow->addChild(m_titleButton);
+
+    /* slot info Button */
+    m_slotInfoButton = CCMenuItemSpriteExtra::create(CCSprite::create("editInfoBtn.png"_spr), this, menu_selector(GDriveSlotBox::onSlotInfo));
+    m_slotInfoButton->setID("slot-info-button"_spr);
+    secondEditRow->addChild(m_slotInfoButton);
+
+    /* history Button */
+    m_historyButton = CCMenuItemSpriteExtra::create(CCSprite::create("editHistoryBtn.png"_spr), this, menu_selector(GDriveSlotBox::onHistory));
+    m_historyButton->setID("history-button"_spr);
+    secondEditRow->addChild(m_historyButton);
+
+    auto editRowLayout = RowLayout::create()->setAxisAlignment(geode::AxisAlignment::Between);
+    firstEditRow->setLayout(editRowLayout);
+    secondEditRow->setLayout(editRowLayout);
+    m_editMenu->setLayout(ColumnLayout::create()->setAxisAlignment(geode::AxisAlignment::Between)->setAutoScale(false)->setAxisReverse(true));
+    m_editMenu->setVisible(false);
+
     setStatusVisiblity(false);
     this->addChildAtPosition(m_menu, Anchor::Center);
 
@@ -215,7 +230,7 @@ bool GDriveSlotBox::init(int slot, bool enableEditMode)
 void GDriveSlotBox::updateStatus()
 {
     auto saveStatus = GDriveManager::getInstance()->checkStatus(this);
-    if (saveStatus == GDriveManager::Working)
+    if (saveStatus == GDriveManager::Status::Working)
     {
         setStatusVisiblity(true);
         showPercentage(GDriveManager::getInstance()->getSaveTotal());
@@ -224,7 +239,7 @@ void GDriveSlotBox::updateStatus()
 
         setEditMode(false);
     }
-    else if (saveStatus == GDriveManager::Waiting)
+    else if (saveStatus == GDriveManager::Status::Waiting)
     {
         setStatusVisiblity(true);
         setStatusMessage("Waiting...");
@@ -249,7 +264,7 @@ void GDriveSlotBox::updateStatus()
             float duration = 1.0f;
             auto action = CCRepeatForever::create(CCSequence::createWithTwoActions(CCFadeTo::create(duration, 55), CCFadeTo::create(duration, 255)));
             action->setTag(1);
-            m_slotTitle->getInputNode()->getTextLabel()->runAction(action);
+            m_slotTitle->getContentLabel()->runAction(action);
         }
 
         if (getEditMode())
@@ -302,15 +317,42 @@ void GDriveSlotBox::onCancel(CCObject *sender)
 {
     createQuickPopup(
         fmt::format("Cancel Save to Slot {}", getSlot()).c_str(),
-        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", getSlot()).c_str(), "Continue", "Cancel",
+        fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", getSlot()).c_str(), "Cancel", "Continue",
         [this](auto, bool btn2) {
-            if (btn2)
+            if (!btn2)
             {
                 setStatusVisiblity(false);
                 GDriveManager::getInstance()->removeFromQueue(getSlot());
+                setWorkingStatus(false);
             }
         },
         true, true);
+}
+
+void GDriveSlotBox::onSlotInfo(CCObject *sender)
+{
+    GDriveLoadLayer *layer = GDriveLoadLayer::create();
+    layer->setMessage(fmt::format("Getting slot {}'s information...", getSlot()));
+    layer->show();
+    async::spawn(GDriveManager::getInstance()->getFileID(getSlot(), false), [layer, this](std::optional<std::pair<std::string, GDriveConsts::slotInformation>> file) {
+        layer->removeFromParent();
+
+        if(file){
+       createQuickPopup(
+            fmt::format("Slot {} information", getSlot()).c_str(), // title
+            "Optional data avaliable in this slot\n"
+            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
+            + "\n"
+            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
+            + "\n"
+            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
+            + "\n"
+            + fmt::format("Game & editor options: {}", (file->second.gameOptions) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>"),
+            "OK", nullptr, 300.f, nullptr
+            );
+        }
+        else GDriveManager::getInstance()->showError("Couldn't get slot info,", "please try again", false);
+    });
 }
 
 void GDriveSlotBox::onDelete(CCObject *sender)
@@ -344,7 +386,8 @@ void GDriveSlotBox::onDelete(CCObject *sender)
                                 auto metadataMap = GDriveManager::getInstance()->getMetadataMap();
                                 if (metadataMap && metadataMap->contains(getSlot()))
                                     metadataMap->erase(getSlot());
-                                updateStatus();
+                                updateInfo();
+                                setEditMode(false);
                             }
                         });
                     }
@@ -382,9 +425,8 @@ void GDriveSlotBox::onConfirmTitle(CCObject *sender)
         else
             updateInfo();
 
-        m_infoRow->setVisible(true);
         m_menu->updateLayout();
-        m_slotTitle->setCallbackEnabled(true);
+        // m_slotTitle->setCallbackEnabled(true);
     });
 }
 
@@ -402,7 +444,7 @@ void GDriveSlotBox::setStatusVisiblity(bool visible)
         m_statusSpinner->setContentSize({60.f, 60.f});
         m_statusSpinner->updateLayout();
 
-        m_slotTitle->getInputNode()->getTextLabel()->setOpacity(255);
+        m_slotTitle->getContentLabel()->setOpacity(255);
     }
     else
     {
@@ -429,7 +471,8 @@ void GDriveSlotBox::updateInfo()
         m_savedSize = utils::numFromString<size_t>(metadataMap->at(getSlot())["size"]).unwrapOrDefault();
         m_savedDescription = metadataMap->at(getSlot())["description"];
     }
-    else{
+    else
+    {
         m_savedTimestamp = 0;
         m_savedSize = 0;
         m_savedDescription = "";
@@ -443,6 +486,7 @@ void GDriveSlotBox::updateInfo()
         m_loadButton->setEnabled(false);
         m_loadButtonSprite->setOpacity(175);
         m_loadButtonSprite->setColor(ccGRAY);
+        m_slotTitle->setString(fmt::format("Slot {}", getSlot()));
         m_empty = true;
     }
     else
@@ -467,8 +511,8 @@ void GDriveSlotBox::updateInfo()
         m_empty = false;
     }
 
-    m_slotTitle->getInputNode()->getTextLabel()->stopActionByTag(1);
-    m_slotTitle->getInputNode()->getTextLabel()->setOpacity(255);
+    m_slotTitle->getContentLabel()->stopActionByTag(1);
+    m_slotTitle->getContentLabel()->setOpacity(255);
 
     m_timeColumn->updateLayout();
     m_infoRow->updateLayout();
@@ -482,18 +526,22 @@ void GDriveSlotBox::setEditMode(bool on)
     const bool isBusy = m_busy || m_gettingMetadata;
     const bool showEditControls = m_editMode && !isBusy && !m_empty;
 
-    m_slotTitle->getBGSprite()->setVisible(showEditControls);
-    m_slotTitle->setEnabled(showEditControls);
+    if (!isBusy)
+    {
+        m_slotTitle->getBGSprite()->setVisible(showEditControls);
+        m_slotTitle->setEnabled(showEditControls);
 
-    m_titleButton->setVisible(showEditControls);
-    m_deleteButton->setVisible(showEditControls);
+        m_editMenu->setVisible(showEditControls);
 
-    m_editSpinner->setVisible(m_editMode && isBusy && !m_empty);
+        m_saveButton->setVisible(!showEditControls);
+        m_loadButton->setVisible(!showEditControls);
+        m_infoRow->setVisible(!showEditControls);
+    }
 
     if (!m_editMode)
         updateInfo();
 
-    m_editMenu->updateLayout();
+    m_menu->updateLayout();
 }
 
 void GDriveSlotBox::setShouldEditMode(bool should)
@@ -569,3 +617,86 @@ void GDriveSlotBox::loadMetadata()
         }
     }
 };
+
+// this is awful. do not look below
+#include <Geode/modify/DialogLayer.hpp>
+
+class $modify(gdbDialogLayer, DialogLayer)
+{
+    $override void displayDialogObject(DialogObject *object)
+    {
+        DialogLayer::displayDialogObject(object);
+
+        switch (object->getTag())
+        {
+        case 1:
+            m_characterSprite->initWithFile("cupanDialog01.png"_spr);
+            break;
+        case 2:
+            m_characterSprite->initWithFile("cupanDialog02.png"_spr);
+            break;
+        case 3:
+            m_characterSprite->initWithFile("cupanDialog03.png"_spr);
+            break;
+        case 4:
+            m_characterSprite->initWithFile("cupanDialog04.png"_spr);
+            break;
+        case 5:
+            m_characterSprite->initWithFile("cupanDialog05.png"_spr);
+            break;
+        case 6:
+            m_characterSprite->initWithFile("cupanDialog06.png"_spr);
+            break;
+        case 7:
+            m_characterSprite->initWithFile("cupanDialog07.png"_spr);
+            break;
+        }
+    }
+};
+
+void GDriveSlotBox::onHistory(CCObject *sender)
+{
+    if (m_seenDialog)
+    {
+        auto *dialogLayer = gdbDialogLayer::createDialogLayer(DialogObject::create("", "...<d100> but nobody came.", 0, 1, true, ccc3(255, 255, 255)), nullptr, 7);
+        dialogLayer->animateInRandomSide();
+        CCScene::get()->addChild(dialogLayer, 1000);
+        return;
+    }
+    auto *dialogArray = CCArray::create();
+
+    auto dO1 = DialogObject::create("cupan", "...", 1, 1, false, ccc3(255, 255, 255));
+    dO1->setTag(1);
+    dialogArray->addObject(dO1);
+
+    auto dO2 = DialogObject::create("cupan", "<s100>HELLO!</s>", 2, 1, false, ccc3(255, 255, 255));
+    dO2->setTag(2);
+    dialogArray->addObject(dO2);
+
+    auto dO3 = DialogObject::create("cupan", "...", 3, 1, false, ccc3(255, 255, 255));
+    dO3->setTag(3);
+    dialogArray->addObject(dO3);
+
+    auto dO4 = DialogObject::create("cupan", "i was told i should read this", 4, 1, false, ccc3(255, 255, 255));
+    dO4->setTag(4);
+    dialogArray->addObject(dO4);
+
+    auto dO5 = DialogObject::create("cupan", "uhh<d030>.<d030>.<d030>.<d060>\n\"This feature is<d060> coming soon!\"", 5, 1, false, ccc3(255, 255, 255));
+    dO5->setTag(5);
+    dialogArray->addObject(dO5);
+
+    auto dO6 = DialogObject::create("cupan", "...", 6, 1, false, ccc3(255, 255, 255));
+    dO6->setTag(6);
+    dialogArray->addObject(dO6);
+
+    auto dO7 = DialogObject::create("cupan", "<s100>BYE!</s>", 7, 1, false, ccc3(255, 255, 255));
+    dO7->setTag(7);
+    dialogArray->addObject(dO7);
+
+    auto *dialogLayer = gdbDialogLayer::createDialogLayer(nullptr, dialogArray, 1);
+    dialogLayer->animateInRandomSide();
+
+    CCScene::get()->addChild(dialogLayer, 1000);
+
+    m_seenDialog = true;
+}

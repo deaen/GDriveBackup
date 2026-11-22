@@ -1,49 +1,25 @@
 {
-	"geode": "5.11.2",
+	"geode": "6.0.0-beta.1",
 	"gd": {
-		"win": "2.2081",
-		"android": "2.2081",
-		"mac": "2.2081",
-		"ios": "2.2081"
+		"win": "2.2091",
+		"android": "2.2091",
+		"mac": "2.2091",
+		"ios": "2.2091"
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDrive Backup",
-	"version": "v1.3.0",
+	"version": "v1.4.0",
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {
-		"geode.node-ids": ">=v1.20.0",
-		"camila314.geode-uri": {
-			"platforms": [
-				"win",
-				"mac"
-			],
-			"required": false,
-			"version": ">=v2.0.0"
-		}
+		"geode.node-ids": ">=1.24.0-beta.1"
 	},
 	"resources": {
 		"sprites": [
-			"resources/size.png",
-			"resources/title.png",
-			"resources/icon.png",
-			"resources/iconNew.png"
+			"resources/*.png"
 		]
 	},
 	"settings": {
-		"signout-button": {
-			"type": "custom:signout-button"
-		},
-		"backup-title": {
-			"type": "title",
-			"name": "Backup Settings"
-		},
-		"load-game-options": {
-			"type": "bool",
-			"default": false,
-			"name": "Load game & editor options",
-			"description": "Enable loading your saved game & editor options (e.g. quick keys, CBS, button rows, link controls, etc.) <cr>Note:</c> This doesn't restore every single option, mainly excludes graphics options."
-		},
 		"ui-title": {
 			"type": "title",
 			"name": "UI Settings"
@@ -51,7 +27,7 @@
 		"slot-count": {
 			"type": "int",
 			"name": "Save slots count",
-			"description": "Choose how many save slots are available. <cr>Note:</c> This setting is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
+			"description": "Choose how many save slots are available. Note that this setting is purely <cg>visual</c>, changing this value does <cy>not</c> delete your save files.",
 			"default": 9,
 			"min": 1,
 			"max": 999,
@@ -65,7 +41,7 @@
 		"button-position": {
 			"type": "string",
 			"name": "Button position",
-			"description": "Sets the <cy>position</c> of the mod's button on the <cg>account menu</c>.",
+			"description": "Sets the position of the mod's button on the <cg>account menu</c>.",
 			"default": "bottom right",
 			"one-of": [
 				"bottom right",
@@ -80,7 +56,7 @@
 		"bottom-button": {
 			"type": "bool",
 			"name": "Main menu shortcut button",
-			"description": "<cg>adds</cg> a button for GDrive Backup to the bottom of the main menu (next to the geode button).",
+			"description": "Adds a button for GDrive Backup to the bottom of the main menu <cc>(next to the geode button)</c>.",
 			"default": false
 		},
 		"new-icon": {
@@ -88,6 +64,38 @@
 			"name": "Use new Drive icon",
 			"description": "Use the new weird gradient-y google drive icon for the buttons instead of the 'lame' 'old' 'one'",
 			"default": false
+		},
+		"advanced-title": {
+			"type": "title",
+			"name": "Backup Settings",
+			"description": "Manage which data is included in saves, and what to load from saves! <cy>these options are local to this device, and aren't synced between devices.</c>"
+		},
+		"platformer-data": {
+			"name": "Platformer saves",
+			"description": "Includes all your saved platformer checkpoints.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
+		},
+		"level-back-data": {
+			"name": "editor auto-backups",
+			"description": "Includes all your auto-backups of editor levels.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
+		},
+		"game-options": {
+			"name": "Game & editor options",
+			"description": "Load game & editor options (such as quick keys, CBS, button rows, link controls, etc.). <cc>Note that this doesn't load every single option, and mainly excludes graphics options</c>.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
+		},
+		"keybind-data": {
+			"name": "Custom keybinds",
+			"description": "Includes your current set custom keybinds.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
+		},
+		"signout-button": {
+			"type": "custom:gdrive-button-row"
 		}
 	},
 	"tags": [
