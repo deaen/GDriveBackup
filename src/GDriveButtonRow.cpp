@@ -41,34 +41,19 @@ class GDriveButtonRow : public SettingV3
 class GDriveButtonRowNode : public SettingNodeV3
 {
   protected:
-    ButtonSprite *m_signoutButtonSprite;
-    CCMenuItemSpriteExtra *m_signoutButton;
-
-    ButtonSprite *m_loadButtonSprite;
-    CCMenuItemSpriteExtra *m_loadButton;
-
     bool init(std::shared_ptr<GDriveButtonRow> setting, float width)
     {
         if (!SettingNodeV3::init(setting, width))
             return false;
 
         getNameLabel()->setVisible(false);
-        m_signoutButtonSprite = ButtonSprite::create("Sign Out", "goldFont.fnt", "GJ_button_06.png");
+        auto m_signoutButtonSprite = ButtonSprite::create("Sign Out", "goldFont.fnt", "GJ_button_06.png");
         m_signoutButtonSprite->setScale(.7f);
-        m_signoutButton = CCMenuItemSpriteExtra::create(m_signoutButtonSprite, this, menu_selector(GDriveButtonRowNode::onSignoutButton));
+        auto m_signoutButton = Button::createWithNode(m_signoutButtonSprite, onSignoutButton);
 
-        if (Mod::get()->getSavedValue<std::array<std::string, 3>>("refresh_token")[0].empty())
-        {
-            m_signoutButton->setEnabled(false);
-            m_signoutButtonSprite->setCascadeColorEnabled(true);
-            m_signoutButtonSprite->setCascadeOpacityEnabled(true);
-            m_signoutButtonSprite->setOpacity(155);
-            m_signoutButtonSprite->setColor(ccGRAY);
-        }
-
-        m_loadButtonSprite = ButtonSprite::create("Load File", "goldFont.fnt", "GJ_button_01.png");
+        auto m_loadButtonSprite = ButtonSprite::create("Load File", "goldFont.fnt", "GJ_button_01.png");
         m_loadButtonSprite->setScale(.7f);
-        m_loadButton = CCMenuItemSpriteExtra::create(m_loadButtonSprite, this, menu_selector(GDriveButtonRowNode::onLoadButton));
+        auto m_loadButton = Button::createWithNode(m_loadButtonSprite, onLoadButton);
 
         this->getButtonMenu()->setLayout(RowLayout::create());
         this->getButtonMenu()->setAnchorPoint({0.5f, 0.5f});
@@ -82,24 +67,49 @@ class GDriveButtonRowNode : public SettingNodeV3
 
         this->updateState(nullptr);
 
+        if (Mod::get()->getSavedValue<std::array<std::string, 3>>("refresh_token")[0].empty())
+        {
+            for (auto button : CCArrayExt<Button>(this->getButtonMenu()->getChildren()))
+            {
+                if (!button)
+                    continue;
+                button->setEnabled(false);
+                auto sprite = static_cast<ButtonSprite *>(button->getDisplayNode());
+                if (!sprite)
+                    continue;
+                sprite->setCascadeColorEnabled(true);
+                sprite->setCascadeOpacityEnabled(true);
+                sprite->setOpacity(155);
+                sprite->setColor(ccGRAY);
+            }
+        }
+
         return true;
     }
 
-    void onSignoutButton(CCObject *)
+    static void onSignoutButton(Button *sender)
     {
         auto popDown = createQuickPopup(
             "Google Account", "Do you want to sign out of GDrive Backup?\n<cy>Note:</c> This does <cg>not</c> delete your saved data.",
             "Cancel", "Sign Out",
-            [this](auto, bool btn2) {
+            [sender](auto, bool btn2) {
                 if (btn2)
                 {
                     GDriveManager::getInstance()->signout(false);
 
-                    m_signoutButton->setEnabled(false);
-                    m_signoutButtonSprite->setCascadeColorEnabled(true);
-                    m_signoutButtonSprite->setCascadeOpacityEnabled(true);
-                    m_signoutButtonSprite->setOpacity(155);
-                    m_signoutButtonSprite->setColor(ccGRAY);
+                    for (auto button : CCArrayExt<Button>(sender->getParent()->getChildren()))
+                    {
+                        if (!button)
+                            continue;
+                        button->setEnabled(false);
+                        auto sprite = static_cast<ButtonSprite *>(button->getDisplayNode());
+                        if (!sprite)
+                            continue;
+                        sprite->setCascadeColorEnabled(true);
+                        sprite->setCascadeOpacityEnabled(true);
+                        sprite->setOpacity(155);
+                        sprite->setColor(ccGRAY);
+                    }
                 }
             },
             false, true);
@@ -107,7 +117,7 @@ class GDriveButtonRowNode : public SettingNodeV3
         popDown->show();
     }
 
-    void onLoadButton(CCObject *)
+    static void onLoadButton(Button *sender)
     {
         file::FilePickOptions options;
 
@@ -115,7 +125,7 @@ class GDriveButtonRowNode : public SettingNodeV3
         filter.description = "GDriveBackup save file";
         options.filters.push_back(filter);
 
-        async::spawn(file::pick(file::PickMode::OpenFile, options), [this](file::PickResult result) {
+        async::spawn(file::pick(file::PickMode::OpenFile, options), [](file::PickResult result) {
             if (result.isOk() && result.unwrap().has_value())
             {
                 auto filePath = result.unwrap().value_or("");
@@ -124,7 +134,7 @@ class GDriveButtonRowNode : public SettingNodeV3
                     auto popUp = createQuickPopup(
                         "Load local save file", "Do you want to <cg>load</c> this <cj>local</c> save file?\n<cy>This will merge your data!</c>",
                         "no", "yes",
-                        [this, filePath](auto, bool btn2) {
+                        [filePath](auto, bool btn2) {
                             if (btn2)
                             {
                                 auto fileRes = utils::file::readBinary(filePath);
@@ -133,7 +143,7 @@ class GDriveButtonRowNode : public SettingNodeV3
                                     auto fileData = std::move(fileRes).unwrap();
 
                                     auto loadLayer = GDriveManager::getInstance()->getCurrentPopup()->showLoadLayer();
-                                    async::spawn(GDriveManager::getInstance()->downloadSave(-1, web::WebRequest(), loadLayer, (filePath.extension() == ".gdbsave") ? GDriveManager::slotType::New : GDriveManager::slotType::Old, fileData), [](bool ok) {
+                                    async::spawn(GDriveManager::getInstance()->downloadSave(-1, web::WebRequest(), loadLayer, (filePath.extension() == "gdbsave") ? GDriveConsts::slotType::New : GDriveConsts::slotType::Old, fileData), [](bool ok) {
                                         if (auto popup = GDriveManager::getInstance()->getCurrentPopup())
                                             popup->hideLoadLayer();
 

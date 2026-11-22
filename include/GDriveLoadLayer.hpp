@@ -1,4 +1,5 @@
 #pragma once
+#include "GDriveConsts.hpp"
 using namespace geode::prelude;
 
 class GDriveLoadLayer : public Popup
@@ -9,6 +10,7 @@ class GDriveLoadLayer : public Popup
     void setPercentage(const size_t progress);
     void setMessage(const std::string_view message);
     void showPercentage(const size_t total);
+    void showFileInfo(GDriveConsts::slotInformation info);
     void hidePercentage();
 
   private:

@@ -14,11 +14,26 @@ namespace GDriveConsts
         backupSettingValue(backupSettingValue const&) = default;
     };
     
-    inline constexpr std::string_view GMData = "GMData";
-    inline constexpr std::string_view LLMData = "LLMData";
+    enum class slotType
+    {
+        New,
+        Old,
+    };
+    struct slotInformation
+    {
+        GDriveConsts::slotType type;
+        bool GMData = false;
+        bool LLMData = false;
+        bool platformerSaves = false;
+        bool gameOptions= false;
+        bool keybinds = false;
+        bool editorBackups = false;
+    };
+
     inline constexpr std::string_view platformerSaves = "platformerSaves";
     inline constexpr std::string_view gameOptions = "gameOptions";
     inline constexpr std::string_view keybinds = "keybinds";
     inline constexpr std::string_view editorBackups = "editorBackups";
 
+    inline constexpr std::string_view auto_backups = "auto_backups";
 }

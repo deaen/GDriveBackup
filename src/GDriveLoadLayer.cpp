@@ -1,4 +1,5 @@
 #include "GDriveLoadLayer.hpp"
+#include "GDriveSaveToggles.hpp"
 
 GDriveLoadLayer *GDriveLoadLayer::create()
 {
@@ -75,4 +76,40 @@ void GDriveLoadLayer::hidePercentage()
 void GDriveLoadLayer::setMessage(const std::string_view message)
 {
     m_statusMessage->setCString(message.data());
+}
+
+void GDriveLoadLayer::showFileInfo(GDriveConsts::slotInformation info)
+{
+    if(info.type == GDriveConsts::slotType::Old) return;
+
+    auto bg = NineSlice::create("GJ_square01.png");
+    bg->setID("info-background"_spr);
+    bg->setContentSize({400.f, 90.f});
+    bg->setAnchorPoint({0.f, 0.f});
+
+    auto titleLabel = Label::create("extras that'll be loaded:", "goldFont.fnt");
+    titleLabel->setID("title-label"_spr);
+    titleLabel->setScale(0.5f);
+
+    auto infoLabel = Label::createRich(
+            std::string((info.platformerSaves && Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").load) ? ":check: <cg>" : ":cross: <cr>")
+            + "Platformer saves</c> \n"
+            + ((info.editorBackups && Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").load) ? ":check: <cg>" : ":cross: <cr>")
+            + "Editor auto-backups</c> \n"
+            + ((info.keybinds && Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").load) ? ":check: <cg>" : ":cross: <cr>")
+            + "Custom keybinds</c>\n"
+            + ((info.gameOptions && Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").load) ? ":check: <cg>" : ":cross: <cr>")
+            + "Game & editor options  </c>",
+            "bigFont.fnt");
+    infoLabel->setID("info-label"_spr);
+    infoLabel->setScale(0.4f);
+
+    bg->addChild(titleLabel);
+    bg->addChild(infoLabel);
+    bg->setLayout(ColumnLayout::create()->setAutoScale(false)->setGap(4.f)->setAxisReverse(true)->setAxisAlignment(AxisAlignment::End)->setCrossAxisLineAlignment(AxisAlignment::Start)->setPadding({7.f, 7.f, 0, 0}));
+
+    this->addChildAtPosition(bg, geode::Anchor::BottomLeft, {5.f, 5.f}, false);
+
+    bg->setScale(0.f);
+    bg->runAction(CCEaseBackOut::create(CCScaleTo::create(.4, 1.f)));
 }

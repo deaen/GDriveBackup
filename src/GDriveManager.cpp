@@ -319,7 +319,7 @@ arc::Future<std::optional<std::string>> GDriveManager::getUserFolderID(const boo
     co_return std::nullopt;
 }
 
-arc::Future<std::optional<std::pair<std::string, GDriveManager::slotInformation>>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
+arc::Future<std::optional<std::pair<std::string, GDriveConsts::slotInformation>>> GDriveManager::getFileID(const int slot, bool autoCreateFolder, std::string error, std::string defparentID, bool visibleError)
 {
     std::string token = co_await getAccessToken();
     std::optional<std::string> parentID = (defparentID.empty()) ? co_await getUserFolderID(autoCreateFolder) : defparentID;
@@ -329,7 +329,7 @@ arc::Future<std::optional<std::pair<std::string, GDriveManager::slotInformation>
         auto req = web::WebRequest();
         req.header("Authorization", fmt::format("Bearer {}", token));
         web::WebResponse res;
-        slotInformation info;
+        GDriveConsts::slotInformation info;
         // look for file
         req.param("q", "((properties has { key='slotID' " + fmt::format("and value='{}'", slot) + " }" + fmt::format(" and name='slot-{}.gdbsave') or name='save-{}' or name='save-{}.dat') and trashed=false and '{}' in parents", slot, slot, slot, *parentID));
         req.param("orderBy", "modifiedTime");
@@ -344,18 +344,15 @@ arc::Future<std::optional<std::pair<std::string, GDriveManager::slotInformation>
 
             if (!id.empty())
             {
-                log::debug("{}", res.string());
-                info.GMData = (props.get<std::string_view>(GDriveConsts::GMData).unwrapOrDefault() == "true") ? true : false;
-                info.LLMData = (props.get<std::string_view>(GDriveConsts::LLMData).unwrapOrDefault() == "true") ? true : false;
                 info.platformerSaves = (props.get<std::string_view>(GDriveConsts::platformerSaves).unwrapOrDefault() == "true") ? true : false;
                 info.gameOptions = (props.get<std::string_view>(GDriveConsts::gameOptions).unwrapOrDefault() == "true") ? true : false;
                 info.keybinds = (props.get<std::string_view>(GDriveConsts::keybinds).unwrapOrDefault() == "true") ? true : false;
                 info.editorBackups = (props.get<std::string_view>(GDriveConsts::editorBackups).unwrapOrDefault() == "true") ? true : false;
-                
+
                 if (name == fmt::format("slot-{}.gdbsave", slot))
-                    info.type = slotType::New;
+                    info.type = GDriveConsts::slotType::New;
                 else
-                    info.type = slotType::Old;
+                    info.type = GDriveConsts::slotType::Old;
 
                 co_return std::make_pair(id, info);
             }
@@ -478,104 +475,105 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
 
     // get gm and llm strings
     std::optional<std::string> GMString = co_await async::waitForMainThread<std::string>([] {
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").save)
+        // get gm dict
+        DS_Dictionary GMDict;
+        GameManager::sharedState()->encodeDataTo(&GMDict);
+
+        // remove options if asked
+        if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").save)
         {
-            // get gm dict
-            DS_Dictionary GMDict;
-            GameManager::sharedState()->encodeDataTo(&GMDict);
-
-            // remove options if asked
-            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").save)
+            auto values = GMDict.getDictForKey("valueKeeper", false);
+            auto keys = CCArray::create();
+            for (auto [key, value] : CCDictionaryExt<std::string, CCString *>(values))
             {
-                auto values = GMDict.getDictForKey("valueKeeper", false);
-                auto keys = CCArray::create();
-                for (auto [key, value] : CCDictionaryExt<std::string, CCString *>(values))
-                {
-                    if (key.contains("gv_"))
-                        keys->addObject(CCString::create(key));
-                }
-                values->removeObjectsForKeys(keys);
-                GMDict.removeKey("valueKeeper");
-                GMDict.setDictForKey("valueKeeper", values);
+                if (key.contains("gv_"))
+                    keys->addObject(CCString::create(key));
             }
-
-            // remove keybinds if asked
-            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").save)
-                GMDict.removeKey("GJKB_Binds");
-
-            // remove plats if asked
-            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
-            {
-                auto levels = GMDict.getArrayForKey("GLM_03", false);
-                for (auto level : CCArrayExt<GJGameLevel *>(levels))
-                {
-                    if (!level->isPlatformer())
-                        continue;
-
-                    level->m_platformerSave = "";
-                    level->m_platformerSaveFormatVersion = 0;
-                    level->m_platformerSaveReplay = "";
-                    level->m_platformerSaveLevelVersion = 0;
-                }
-                GMDict.removeKey("GLM_03");
-                GMDict.setArrayForKey("GLM_03", levels);
-            }
-
-            return ZipUtils::compressString(GMDict.saveRootSubDictToString(), false, 11, 0);
+            values->removeObjectsForKeys(keys);
+            GMDict.removeKey("valueKeeper");
+            GMDict.setDictForKey("valueKeeper", values);
         }
-        else
-            return std::string();
+
+        // remove keybinds if asked
+        if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").save)
+            GMDict.removeKey("GJKB_Binds");
+
+        // remove plats if asked
+        if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
+        {
+            auto levels = GMDict.getArrayForKey("GLM_03", false);
+            for (auto level : CCArrayExt<GJGameLevel *>(levels))
+            {
+                if (!level->isPlatformer())
+                    continue;
+
+                level->m_platformerSave = "";
+                level->m_platformerSaveFormatVersion = 0;
+                level->m_platformerSaveReplay = "";
+                level->m_platformerSaveLevelVersion = 0;
+            }
+            GMDict.removeKey("GLM_03");
+            GMDict.setArrayForKey("GLM_03", levels);
+        }
+
+        return ZipUtils::compressString(GMDict.saveRootSubDictToString(), false, 11, 0);
     });
 
     std::optional<std::string> LLMString = co_await async::waitForMainThread<std::string>([] {
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").save)
+        // get llm dict
+        DS_Dictionary LLMDict;
+        LocalLevelManager::sharedState()->encodeDataTo(&LLMDict);
+
+        // remove plat saves from all levels
+        if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
         {
-            // get llm dict
-            DS_Dictionary LLMDict;
-            LocalLevelManager::sharedState()->encodeDataTo(&LLMDict);
-
-            // remove plat saves from all levels
-            if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
+            auto levels = LLMDict.getArrayForKey("LLM_01", false);
+            for (auto level : CCArrayExt<GJGameLevel *>(levels))
             {
-                auto levels = LLMDict.getArrayForKey("LLM_01", false);
-                for (auto level : CCArrayExt<GJGameLevel *>(levels))
-                {
-                    if (!level->isPlatformer())
-                        continue;
+                if (!level->isPlatformer())
+                    continue;
 
-                    level->m_platformerSave = "";
-                    level->m_platformerSaveFormatVersion = 0;
-                    level->m_platformerSaveReplay = "";
-                    level->m_platformerSaveLevelVersion = 0;
-                }
-                LLMDict.removeKey("LLM_01");
-                LLMDict.setArrayForKey("LLM_01", levels);
+                level->m_platformerSave = "";
+                level->m_platformerSaveFormatVersion = 0;
+                level->m_platformerSaveReplay = "";
+                level->m_platformerSaveLevelVersion = 0;
             }
-            return ZipUtils::compressString(LLMDict.saveRootSubDictToString(), false, 11, 0);
+            LLMDict.removeKey("LLM_01");
+            LLMDict.setArrayForKey("LLM_01", levels);
         }
-        else
-            return std::string();
+        return ZipUtils::compressString(LLMDict.saveRootSubDictToString(), false, 11, 0);
     });
 
     {
         auto zip = std::move(zipRes).unwrap();
 
-        bool GMRes = false;
+        Result<> GMRes = Err("GMString is not here");
         if (GMString)
-            GMRes = (GMString->empty()) ? true : zip.add("CCGameManager.dat", *GMString).isOk();
+            GMRes = (GMString->empty()) ? Ok() : zip.add("CCGameManager.dat", *GMString);
 
-        bool LLMRes = false;
+        Result<> LLMRes = Err("LLMString is not here");
         if (LLMString)
-            LLMRes = (LLMString->empty()) ? true : zip.add("CCLocalLevels.dat", *LLMString).isOk();
+            LLMRes = (LLMString->empty()) ? Ok() : zip.add("CCLocalLevels.dat", *LLMString);
 
-        bool backupRes = (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save) ? zip.addAllFrom(dirs::getSaveDir() / "auto_backups").isOk() : true;
-
+        Result<> backupRes = Ok();
+        auto editorBackupDir = file::readDirectory(AutoBackupPopup::backupDirectory());
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save && editorBackupDir && !editorBackupDir.unwrap().empty())
+        {
+            if (zip.addFolder(GDriveConsts::auto_backups))
+                for (auto file : editorBackupDir.unwrap())
+                {
+                    if (!zip.addFrom(file, GDriveConsts::auto_backups))
+                        backupRes = Err(fmt::format("Couldn't add this file to the zip: {}", file.c_str()));
+                }
+            else
+                backupRes = Err("Couldn't create auto_backups zip entry");
+        }
         if (!GMRes || !LLMRes || !backupRes)
         {
             co_await waitForMainThread([this] {
                 showError("Couldn't add save file(s),", "please try again", false);
             });
-            log::warn("GMRes: {}\nLLMRes: {}\nbackupRes: {}", GMRes, LLMRes, backupRes);
+            log::warn("GMRes: {} | LLMRes: {} | backupRes: {}", GMRes, LLMRes, backupRes);
 
             co_return false;
         }
@@ -606,8 +604,6 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     auto reqBody = matjson::makeObject({{"name", fmt::format("slot-{}.gdbsave", slot)}});
 
     reqBody.set("properties", matjson::makeObject({{"slotID", slot},
-                                                   {GDriveConsts::GMData.data(), (GMString) ? !GMString->empty() : false},
-                                                   {GDriveConsts::LLMData.data(), (LLMString) ? !LLMString->empty() : false},
                                                    {GDriveConsts::editorBackups.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").save},
                                                    {GDriveConsts::gameOptions.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("game-options").save},
                                                    {GDriveConsts::keybinds.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").save},
@@ -891,7 +887,6 @@ bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
     // remove plat saves from all levels
     if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").load)
     {
-        log::debug("HI");
         auto levels = LLMDict.getArrayForKey("LLM_01", false);
         for (auto level : CCArrayExt<GJGameLevel *>(levels))
         {
@@ -912,7 +907,7 @@ bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
     return true;
 }
 
-arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveManager::slotType saveFileType, ByteVector saveFile)
+arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveConsts::slotType saveFileType, ByteVector saveFile)
 {
     if (saveFile.empty())
     {
@@ -938,6 +933,8 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
             co_await waitForMainThread([this] { showError("Couldn't find file", "", false); });
             co_return false;
         }
+
+        co_await waitForMainThread([this, loadLayer, &fileID] { if(loadLayer) loadLayer->showFileInfo(fileID->second); });
         saveFileType = fileID->second.type;
 
         auto req = web::WebRequest();
@@ -1048,13 +1045,12 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
 
     std::string GMData;
     std::string LLMData;
-    if (saveFileType == GDriveManager::slotType::New)
+    if (saveFileType == GDriveConsts::slotType::New)
     {
         const auto GMName = "CCGameManager.dat";
         const auto LLMName = "CCLocalLevels.dat";
-        const auto backupsName = "auto_backups";
         const auto unzipPath = Mod::get()->getSaveDir() / fmt::format("slot-{}-temp", slot);
-        const auto backupsPath = dirs::getSaveDir() / backupsName;
+        const asp::fs::Path editorBackupsPath = AutoBackupPopup::backupDirectory();
 
         {
             auto unzipRes = file::Unzip::create(saveFile);
@@ -1075,7 +1071,7 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
             }
         }
 
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").load && asp::fs::exists(unzipPath / GMName))
+        if (asp::fs::exists(unzipPath / GMName))
         {
             auto GMRes = file::readString(unzipPath / GMName);
             if (GMRes)
@@ -1086,7 +1082,7 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
                 });
         }
 
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").load && asp::fs::exists(unzipPath / LLMName))
+        if (asp::fs::exists(unzipPath / LLMName))
         {
 
             auto LLMRes = file::readString(unzipPath / LLMName);
@@ -1098,24 +1094,17 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
                 });
         }
 
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").load && asp::fs::exists(unzipPath / backupsName))
+        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("level-back-data").load && asp::fs::exists(unzipPath / GDriveConsts::auto_backups))
         {
             // manually moving files cuz asp::fs::copy just wont work with directories for some reason
-            auto createRes = asp::fs::createDirAll(backupsPath);
-
-            if (auto backupsIter = asp::fs::iterDir(unzipPath / backupsName))
+            auto createRes = asp::fs::createDirAll(editorBackupsPath);
+            if (auto backupsFolder = file::readDirectory(unzipPath / GDriveConsts::auto_backups))
             {
-                for (auto result : *backupsIter)
+                for (auto file : *backupsFolder)
                 {
-                    if (!result)
-                    {
-                        log::warn("couldnt get this auto_backups file: {}", result.err());
-                        continue;
-                    }
-                    auto file = result.unwrap();
                     if (file.isFile())
                     {
-                        auto copyRes = asp::fs::copy(file.path, backupsPath / *file.path.filename());
+                        auto copyRes = asp::fs::copy(file, editorBackupsPath / *file.filename());
                         if (!copyRes && copyRes.err()->kind() != asp::fs::ErrorKind::AlreadyExists)
                         {
                             log::warn("couldnt copy this auto_backups file: {}", copyRes.err());
@@ -1140,14 +1129,12 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
         if (m_loadTotal != saveFile.size() || strings.size() != 2)
         {
             co_await waitForMainThread(
-                [this] { showError("load failed", "File isn't valid", false); });
+                [this] { showError("load failed:", "File isn't valid", false); });
             co_return false;
         }
 
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("gm-data").load)
-            GMData = strings[0];
-        if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("llm-data").load)
-            LLMData = strings[1];
+        GMData = strings[0];
+        LLMData = strings[1];
     }
 
     // here we go
@@ -1550,11 +1537,13 @@ GDriveManager::Status GDriveManager::checkStatus(GDriveSlotBox *box)
         return Status::Idle;
     if (m_saveQueue.begin()->first == box->getSlot())
     {
+        box->setWorkingStatus(true);
         m_saveQueue.insert_or_assign(box->getSlot(), box);
         return Status::Working;
     }
     else if (m_saveQueue.contains(box->getSlot()))
     {
+        box->setWorkingStatus(true);
         m_saveQueue.insert_or_assign(box->getSlot(), box);
         return Status::Waiting;
     }

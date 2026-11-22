@@ -334,25 +334,22 @@ void GDriveSlotBox::onSlotInfo(CCObject *sender)
     GDriveLoadLayer *layer = GDriveLoadLayer::create();
     layer->setMessage(fmt::format("Getting slot {}'s information...", getSlot()));
     layer->show();
-    async::spawn(GDriveManager::getInstance()->getFileID(getSlot(), false), [layer, this](std::optional<std::pair<std::string, GDriveManager::slotInformation>> file) {
+    async::spawn(GDriveManager::getInstance()->getFileID(getSlot(), false), [layer, this](std::optional<std::pair<std::string, GDriveConsts::slotInformation>> file) {
         layer->removeFromParent();
 
         if(file){
-        FLAlertLayer::create(
+       createQuickPopup(
             fmt::format("Slot {} information", getSlot()).c_str(), // title
-            "Data avaliable in this slot\n"
-            + fmt::format("Game & user data: {}", (file->second.GMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            "Optional data avaliable in this slot\n"
+            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Local levels: {}", (file->second.LLMData) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
+            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
             + "\n"
-            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>")
-            + "\n"
-            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":cross: <cr>Missing</c>"),
-            "OK"
-            )
-            ->show();
+            + fmt::format("Game & editor options: {}", (file->second.gameOptions) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>"),
+            "OK", nullptr, 300.f, nullptr
+            );
         }
         else GDriveManager::getInstance()->showError("Couldn't get slot info,", "please try again", false);
     });
@@ -622,7 +619,6 @@ void GDriveSlotBox::loadMetadata()
 };
 
 // this is awful. do not look below
-#ifdef GEODE_IS_DESKTOP
 #include <Geode/Modify/DialogLayer.hpp>
 
 class $modify(gdbDialogLayer, DialogLayer)
@@ -657,11 +653,9 @@ class $modify(gdbDialogLayer, DialogLayer)
         }
     }
 };
-#endif
+
 void GDriveSlotBox::onHistory(CCObject *sender)
 {
-    #ifdef GEODE_IS_DESKTOP
-
     if (m_seenDialog)
     {
         auto *dialogLayer = gdbDialogLayer::createDialogLayer(DialogObject::create("", "...<d100> but nobody came.", 0, 1, true, ccc3(255, 255, 255)), nullptr, 7);
@@ -705,10 +699,4 @@ void GDriveSlotBox::onHistory(CCObject *sender)
     CCScene::get()->addChild(dialogLayer, 1000);
 
     m_seenDialog = true;
-    
-    #else
-    FLAlertLayer::create(
-            "Mobile User", "Mobile",
-            "????")->show();
-    #endif
 }

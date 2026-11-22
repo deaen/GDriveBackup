@@ -33,6 +33,7 @@ bool GDriveSizeInfoPopup::init(sizedata_map &sizeDataMap)
 
     /* Table Container */
     auto tableContainer = ScrollLayer::create({tableWidth, tableHeight}, true, true);
+    tableContainer->setAnchorPoint({0, 0});
     tableContainer->setID("table-container"_spr);
 
     /* Table Entries */

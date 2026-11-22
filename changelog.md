@@ -1,7 +1,19 @@
+# v1.4.0
+- Updated to 2.2091 and Geode v6!
+- Support to save & load:
+    - <cy>**platformer saves**</c>
+    - <cy>**editor levels auto-backups**</c>
+    - <cy>**custom keybinds**</c>
+    - and <cy>**game & editor options**</c>!
+- **Redesigned** edit menu!
+- **Slot info** menu, which shows you what data is available in that respective slot!
+- Ability to load **local** save files!
+- Bug fixes & improvements!
+
 # v1.3.0
-- <cy>New Edit mode!</c> the ability to <cr>**delete**</c> saves!
-- <cy> New size information menu!</c> shows you a complete breakdown of your save files across all your accounts!
-- <cy>New drive icon option!</c> If you want to!
+- New Edit mode! the ability to <cr>**delete**</c> saves!
+-  New size information menu! shows you a complete breakdown of your save files across all your accounts!
+- New drive icon option!< If you want to!
 - Lots of bug fixes & optimizations!
 
 # 1.2.1
