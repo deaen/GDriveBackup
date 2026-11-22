@@ -619,7 +619,7 @@ void GDriveSlotBox::loadMetadata()
 };
 
 // this is awful. do not look below
-#include <Geode/Modify/DialogLayer.hpp>
+#include <Geode/modify/DialogLayer.hpp>
 
 class $modify(gdbDialogLayer, DialogLayer)
 {
