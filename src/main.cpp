@@ -10,7 +10,6 @@ struct GDriveMain
     void onButton(CCObject *)
     {
         GDrivePopup::create();
-        
         /* Update popup */
         if (!Mod::get()->setSavedValue("shown-v1.4.0-popup", true) && !Mod::get()->getSavedValue<bool>("new-user", false))
         {
