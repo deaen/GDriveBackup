@@ -501,8 +501,8 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
         // remove plats if asked
         if (!Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save)
         {
-            auto levels = GMDict.getArrayForKey("GLM_03", false);
-            for (auto level : CCArrayExt<GJGameLevel *>(levels))
+            auto levels = GMDict.getDictForKey("GLM_03", false);
+            for (auto [key, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levels))
             {
                 if (!level->isPlatformer())
                     continue;
@@ -513,7 +513,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
                 level->m_platformerSaveLevelVersion = 0;
             }
             GMDict.removeKey("GLM_03");
-            GMDict.setArrayForKey("GLM_03", levels);
+            GMDict.setDictForKey("GLM_03", levels);
         }
 
         return ZipUtils::compressString(GMDict.saveRootSubDictToString(), false, 11, 0);
@@ -723,6 +723,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     co_return true;
 }
 
+
 bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 {
     DS_Dictionary GMDict;
@@ -735,12 +736,12 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
         return false;
     }
 
-    auto levels = GMDict.getArrayForKey("GLM_03", false);
+    auto levels = GMDict.getDictForKey("GLM_03", false);
 
     std::string statsString;
     size_t levelCount = 0;
 
-    for (auto level : CCArrayExt<GJGameLevel>(levels))
+    for (auto [key, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levels))
     {
         if (level == nullptr)
             continue;
@@ -748,7 +749,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
         // create stats string
         if (levelCount != 0)
             statsString += ",";
-        statsString += level->m_levelID;
+        statsString += std::to_string(level->m_levelID.value());
         statsString += ("," + std::to_string(level->m_stars.value()));
         ++levelCount;
 
@@ -765,7 +766,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
         }
     }
     GMDict.removeKey("GLM_03");
-    GMDict.setArrayForKey("GLM_03", levels);
+    GMDict.setDictForKey("GLM_03", levels);
 
     if (levels->count() != levelCount)
     {
@@ -776,7 +777,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     auto AM = AchievementManager::sharedState();
     bool oldDontNotify = AM->m_dontNotify;
     AM->m_dontNotify = true;
-
+    
     // & do whatever this is
     auto GSM = GameStatsManager::sharedState();
     bool oldSkipIncrementChallenge = GSM->m_skipIncrementChallenge;
@@ -784,10 +785,17 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     GSM->preSaveGameStats();
     GSM->m_usePlayerStatsCCDictionary = true;
 
+    auto GM = GameManager::sharedState();
+    GM->dataLoaded(&GMDict);
+
+    // GameLevelManager::sharedState()->clearPlatformerSaveJournal();
+
     // i really really REALLY don't want to hardcode this but i can't think of something better if u know of a better solution PLEASE let me know
     std::string_view packsString = "1:1:3:11940,150245,215705:4:3:5:1|1:2:3:151245,61757,150906:4:4:5:1|1:3:3:59767,61982,65106:4:4:5:1|1:5:3:217631,3785,281148:4:5:5:1|1:6:3:167527,23420,88737:4:6:5:1|1:7:3:71485,77879,79275:4:6:5:1|1:8:3:8612,131259,85065:4:7:5:1|1:9:3:87960,116806,278956:4:8:5:1|1:10:3:269500,49229,169590:4:8:5:1|1:11:3:329929,188909,340602:4:9:5:1|1:19:3:341613,358750,369294:4:10:5:2|1:20:3:70059,10109,135561:4:10:5:2|1:21:3:57730,308891,102765:4:10:5:2|1:22:3:186646,13519,55520:4:10:5:2|1:26:3:199761,214523,130414:4:10:5:2|1:27:3:497514,380082,553327:4:10:5:2|1:28:3:541953,379772,449502:4:10:5:2|1:29:3:511533,350329,428765:4:10:5:2|1:30:3:393159,456678,396874:4:10:5:2|1:31:3:450920,316982,436624:4:10:5:2|1:32:3:490078,506009,513124:4:4:5:1|1:33:3:364445,411459,509393:4:5:5:1|1:34:3:422703,460862,124052:4:6:5:1|1:35:3:461472,516810,447766:4:8:5:1|1:36:3:456675,471354,457265:4:8:5:1|1:37:3:674454,750434,835854:4:5:5:1|1:38:3:809579,741941,577710:4:5:5:1|1:39:3:819956,540428,878743:4:6:5:1|1:40:3:714673,729521,661286:4:7:5:1|1:41:3:821459,692596,745177:4:8:5:1|1:42:3:857195,687938,804313:4:8:5:1|1:43:3:827829,664044,708901:4:8:5:1|1:44:3:882417,884256,551979:4:9:5:1|1:45:3:856066,862216,877915:4:6:5:1|1:46:3:874540,664867,700880:4:10:5:2|1:47:3:682941,897987,513137:4:10:5:2|1:48:3:776919,741635,735154:4:10:5:2|1:49:3:764038,897837,848722:4:10:5:2|1:50:3:840397,413504,839175:4:10:5:2|1:52:3:1512012,1602784,1649640:4:4:5:1|1:53:3:1244147,1389451,1642022:4:3:5:1|1:54:3:1314024,1629780,1721197:4:4:5:1|1:55:3:1446958,1063115,1734354:4:4:5:1|1:56:3:980341,1541962,1160937:4:5:5:1|1:57:3:1001204,1694003,1544084:4:6:5:1|1:58:3:1498893,1123276,1322487:4:7:5:1|1:59:3:1566116,946020,1100161:4:8:5:1|1:60:3:1350389,1215630,1724579:4:8:5:1|1:61:3:1267316,1670283,1205277:4:8:5:1|1:62:3:1447246,1132530,1683722:4:9:5:1|1:63:3:1728550,1799065,1311773:4:9:5:1|1:64:3:1018758,1326086,1698428:4:10:5:2|1:65:3:1668421,1703546,923264:4:10:5:2|1:66:3:1650666,1474319,1777565:4:10:5:2|1:67:3:4454123,11280109,6508283:4:2:5:1|1:68:3:10992098,9110646,9063899:4:3:5:1|1:69:3:8320596,2820124,8477262:4:3:5:1|1:70:3:5131543,8157377,8571598:4:4:5:1|1:71:3:12178580,11357573,11591917:4:4:5:1|1:72:3:4449079,6979485,10110092:4:4:5:1|1:73:3:13766381,13242284,13963465:4:4:5:1|1:74:3:8939774,9204593,6324840:4:5:5:1|1:75:3:7485599,5017264,6053464:4:5:5:1|1:76:3:13912771,12577409,11924846:4:5:5:1|1:77:3:3382569,3224853,3012870:4:6:5:1";
-    auto mapPacks = GameLevelManager::sharedState()->createAndGetMapPacks(packsString.data());
 
+    GM->recountUserStats(statsString);
+
+    auto mapPacks = GameLevelManager::sharedState()->createAndGetMapPacks(packsString.data());
     for (auto pack : CCArrayExt<GJMapPack *>(mapPacks))
     {
         if (pack->hasCompletedMapPack())
@@ -796,10 +804,6 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
         GSM->setStarsForMapPack(pack->m_packID, pack->m_stars);
     }
 
-    auto GM = GameManager::sharedState();
-    GM->dataLoaded(&GMDict);
-
-    // now we re count stats with the awesome string i made
     GM->recountUserStats(statsString);
 
     // do these things
@@ -807,11 +811,13 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     GSM->tryFixPathBug();
     GSM->verifyPathAchievements();
 
+    GM->m_playerName = GJAccountManager::sharedState()->m_username;
+
     // and put everything back!
     GSM->m_usePlayerStatsCCDictionary = false;
     GSM->postLoadGameStats();
-    AM->m_dontNotify = oldDontNotify;
     GSM->m_skipIncrementChallenge = oldSkipIncrementChallenge;
+    AM->m_dontNotify = oldDontNotify;
 
     // keybinds
     if (Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").load)
@@ -876,6 +882,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 
     return true;
 }
+
 
 bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
 {
@@ -1150,7 +1157,7 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
 
 arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
 {
-    /* Varz (vARS) (varaibles) */
+    // Varz (vARS) (varaibles)
     std::string token = co_await getAccessToken();
     auto parentID = co_await getMainFolderID(true);
     if (token.empty() || !parentID || (*parentID).empty())
@@ -1162,7 +1169,7 @@ arc::Future<std::optional<sizedata_map>> GDriveManager::getSizeInfo()
 
     sizedata_map sizeDataMap;
 
-    /* Get Data */
+    // Get Data
     std::string nextPageToken;
     do
     {

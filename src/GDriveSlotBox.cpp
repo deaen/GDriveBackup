@@ -341,13 +341,13 @@ void GDriveSlotBox::onSlotInfo(CCObject *sender)
        createQuickPopup(
             fmt::format("Slot {} information", getSlot()).c_str(), // title
             "Optional data avaliable in this slot\n"
-            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
+            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>")
             + "\n"
-            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
+            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>")
             + "\n"
-            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>")
+            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>")
             + "\n"
-            + fmt::format("Game & editor options: {}", (file->second.gameOptions) ? ":check: <cg>Available</c>" : ":exclamation: <cr>Missing</c>"),
+            + fmt::format("Game & editor options: {}", (file->second.gameOptions) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>"),
             "OK", nullptr, 300.f, nullptr
             );
         }

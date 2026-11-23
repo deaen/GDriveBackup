@@ -12,7 +12,7 @@
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {
-		"geode.node-ids": ">=1.24.0-beta.1"
+		"geode.node-ids": ">=1.20.0"
 	},
 	"resources": {
 		"sprites": [
@@ -82,15 +82,15 @@
 			"type":"custom:gdrive-save-toggles",
 			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
-		"game-options": {
-			"name": "Game & editor options",
-			"description": "Load game & editor options (such as quick keys, CBS, button rows, link controls, etc.). <cc>Note that this doesn't load every single option, and mainly excludes graphics options</c>.",
-			"type":"custom:gdrive-save-toggles",
-			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
-		},
 		"keybind-data": {
 			"name": "Custom keybinds",
 			"description": "Includes your current set custom keybinds.",
+			"type":"custom:gdrive-save-toggles",
+			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
+		},
+		"game-options": {
+			"name": "Game & editor options",
+			"description": "Load game & editor options (such as quick keys, CBS, button rows, link controls, etc.). <cc>Note that this doesn't load every single option, and mainly excludes graphics options</c>.",
 			"type":"custom:gdrive-save-toggles",
 			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
