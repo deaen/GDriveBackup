@@ -4,7 +4,7 @@
 ## <cj>Features:</c>
 - **Backup and load your data to Google Drive!**
 - **No file size limits!**
-- **Supports platformer saves & editor backups!**
+- **Supports platformer saves & editor level backups!**
 - **Infinite save slots!**
 - **Unique slots for each GD account!**
 - **Super simple Google Sign in!**
