@@ -315,7 +315,7 @@ void GDriveSlotBox::onLoad(CCObject *sender)
 
 void GDriveSlotBox::onCancel(CCObject *sender)
 {
-    createQuickPopup(
+    auto popup = createQuickPopup(
         fmt::format("Cancel Save to Slot {}", getSlot()).c_str(),
         fmt::format("Do you want to <cr>cancel</c> saving to <cj>slot {}</c>?", getSlot()).c_str(), "Cancel", "Continue",
         [this](auto, bool btn2) {
@@ -324,9 +324,13 @@ void GDriveSlotBox::onCancel(CCObject *sender)
                 setStatusVisiblity(false);
                 GDriveManager::getInstance()->removeFromQueue(getSlot());
                 setWorkingStatus(false);
+                updateStatus();
             }
         },
-        true, true);
+        false, true);
+
+        popup->m_button2->updateBGImage("GJ_button_06.png");
+        popup->show();
 }
 
 void GDriveSlotBox::onSlotInfo(CCObject *sender)
@@ -337,21 +341,15 @@ void GDriveSlotBox::onSlotInfo(CCObject *sender)
     async::spawn(GDriveManager::getInstance()->getFileID(getSlot(), false), [layer, this](std::optional<std::pair<std::string, GDriveConsts::slotInformation>> file) {
         layer->removeFromParent();
 
-        if(file){
-       createQuickPopup(
-            fmt::format("Slot {} information", getSlot()).c_str(), // title
-            "Optional data avaliable in this slot\n"
-            + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>")
-            + "\n"
-            + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>")
-            + "\n"
-            + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>")
-            + "\n"
-            + fmt::format("Game & editor options: {}", (file->second.gameOptions) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>"),
-            "OK", nullptr, 300.f, nullptr
-            );
+        if (file)
+        {
+            createQuickPopup(
+                fmt::format("Slot {} information", getSlot()).c_str(), // title
+                "Optional data avaliable in this slot\n" + fmt::format("Platformer saves: {}", (file->second.platformerSaves) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>") + "\n" + fmt::format("Editor auto-backups: {}", (file->second.editorBackups) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>") + "\n" + fmt::format("Custom keybinds: {}", (file->second.keybinds) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>") + "\n" + fmt::format("Game & editor options: {}", (file->second.gameOptions) ? ":check: <cg>Available</c>" : ":exclamation:<cr>Missing</c>"),
+                "OK", nullptr, 300.f, nullptr);
         }
-        else GDriveManager::getInstance()->showError("Couldn't get slot info,", "please try again", false);
+        else
+            GDriveManager::getInstance()->showError("Couldn't get slot info,", "please try again", false);
     });
 }
 

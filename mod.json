@@ -92,7 +92,7 @@
 			"name": "Game & editor options",
 			"description": "Load game & editor options (such as quick keys, CBS, button rows, link controls, etc.). <cc>Note that this doesn't load every single option, and mainly excludes graphics options</c>.",
 			"type":"custom:gdrive-save-toggles",
-			"default":{"save": true, "load": true, "saveToggleEnabled": true, "loadToggleEnabled": true}
+			"default":{"save": true, "load": false, "saveToggleEnabled": true, "loadToggleEnabled": true}
 		},
 		"signout-button": {
 			"type": "custom:gdrive-button-row"
