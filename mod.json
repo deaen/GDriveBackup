@@ -1,5 +1,5 @@
 {
-	"geode": "6.0.0-beta.2",
+	"geode": "6.0.0-beta.3",
 	"gd": {
 		"win": "2.2091",
 		"android": "2.2091",
@@ -8,7 +8,7 @@
 	},
 	"id": "deaen.gdrivebackup",
 	"name": "GDrive Backup",
-	"version": "v1.4.0",
+	"version": "v1.4.1",
 	"developer": "deaen",
 	"description": "Save & load your data to Google Drive!",
 	"dependencies": {

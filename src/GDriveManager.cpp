@@ -459,8 +459,6 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     }
 
     auto fileID = co_await getFileID(slot, true, fmt::format("Slot {} Save Failed", slot), *parentID, false);
-    if (!fileID)
-        fileID->first = "";
 
     // create zip
     const auto unzipPath = Mod::get()->getSaveDir() / fmt::format("slot-{}.gdbsave", slot);
@@ -609,7 +607,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
                                                    {GDriveConsts::keybinds.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("keybind-data").save},
                                                    {GDriveConsts::platformerSaves.data(), Mod::get()->getSettingValue<GDriveConsts::backupSettingValue>("platformer-data").save}}));
 
-    if (fileID->first.empty())
+    if (!fileID || fileID->first.empty())
     {
         reqBody.set("parents", std::vector<matjson::Value>({*parentID}));
         req.bodyJSON(reqBody);
