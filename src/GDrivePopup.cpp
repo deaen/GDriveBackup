@@ -11,11 +11,22 @@ GDrivePopup *GDrivePopup::create()
         GDriveSigninPopup::create()->show();
         return nullptr;
     }
+
     auto ret = new GDrivePopup();
     if (ret->init())
     {
         ret->autorelease();
         ret->show();
+
+        /* Update popup */
+        if (!Mod::get()->setSavedValue("shown-v1.4.1-popup", true))
+        {
+            createQuickPopup(
+                "update v1.4.0",
+                "New update! added support to save & load:\n- <cy>platformer saves</c>\n- <cy>editor levels auto-backups</c>\n- <cy>custom keybinds</c>\n- and <cy>game & editor options</c>!\nyou can set these in the <cg>mod settings</c> at the bottom right of this menu, there's also more new things, so check out the full changelog!\n <cp>thank you for using this mod! :D</c>",
+                "Okay", nullptr, 400.f, nullptr);
+        }
+
         return ret;
     }
 
@@ -105,7 +116,7 @@ bool GDrivePopup::init()
     m_pageButtonsRow->setContentWidth(popupColumn->getContentWidth());
     m_pageButtonsRow->setAnchorPoint({0.5f, 0.5f});
     m_pageButtonsRow->setID("page-button-row"_spr);
-    
+
     /* Slot & metadata setup */
     GDriveManager::getInstance()->getMetadataListner()->spawn(GDriveManager::getInstance()->getMetadata(), [this](bool gotData) {
         for (const auto &box : m_slotBoxes)
@@ -119,7 +130,7 @@ bool GDrivePopup::init()
     });
 
     showSlotPage(1);
-    
+
     for (int i = 1; i <= m_maxSlotPage; ++i)
     {
         auto buttonSpr = CCSprite::create("smallDot.png");
@@ -225,7 +236,8 @@ void GDrivePopup::onNameInfo(CCObject *sender)
         (accID != 0)
             ? fmt::format("Each of your GD accounts has <cj>different</c> save slots!\nFor example, if you sign into your alt GD account and save your data, it <cg>won't</c> overwrite your main account's save! Pretty Cool!\naccount ID: <cy>{}</c>", accID)
             : fmt::format("You are currently on an <cr>unregistered</c> account. Saving data while signed out will <cr>overwrite</c> any other data you might have saved while signed out on other sessions/devices.\naccount ID: <cy>{}</c>", accID),
-        "Okay")->show();
+        "Okay")
+        ->show();
 }
 
 void GDrivePopup::onSizeInfo(CCObject *sender)

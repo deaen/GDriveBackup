@@ -329,7 +329,7 @@ void GDriveSlotBox::onCancel(CCObject *sender)
         },
         false, true);
 
-        popup->m_button2->updateBGImage("GJ_button_06.png");
+        popup->m_button1->updateBGImage("GJ_button_06.png");
         popup->show();
 }
 

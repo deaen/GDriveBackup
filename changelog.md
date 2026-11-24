@@ -1,3 +1,7 @@
+# v1.4.1
+- fix windows crash
+- other bub fix
+
 # v1.4.0
 - Updated to 2.2091 and Geode v6!
 - Support to save & load:

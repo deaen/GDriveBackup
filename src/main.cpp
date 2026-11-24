@@ -9,15 +9,9 @@ struct GDriveMain
 {
     void onButton(CCObject *)
     {
+        if (!Mod::get()->getSavedValue<bool>("new-user", false))
+            Mod::get()->setSavedValue("shown-v1.4.1-popup", true);
         GDrivePopup::create();
-        /* Update popup */
-        if (!Mod::get()->setSavedValue("shown-v1.4.0-popup", true) && !Mod::get()->getSavedValue<bool>("new-user", false))
-        {
-            createQuickPopup(
-                "update v1.4.0",
-                "New update! added support to save & load:\n- <cy>platformer saves</c>\n- <cy>editor levels auto-backups</c>\n- <cy>custom keybinds</c>\n- and <cy>game & editor options</c>!\nyou can set these in the <cg>mod settings</c> at the bottom right of this menu, there's also more new things, so check out the full changelog!\n <cp>thank you for using this mod! :D</c>",
-                "Okay", nullptr, 400.f, nullptr);
-        }
     }
 };
 
