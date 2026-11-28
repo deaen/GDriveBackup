@@ -560,6 +560,9 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
             if (zip.addFolder(GDriveConsts::auto_backups))
                 for (auto file : editorBackupDir.unwrap())
                 {
+                    if (!file.isFile())
+                        continue;
+                    
                     if (!zip.addFrom(file.makePreferred(), GDriveConsts::auto_backups))
                         backupRes = Err(fmt::format("Couldn't add this file to the zip: {}", file.c_str()));
                 }
@@ -721,7 +724,6 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     co_return true;
 }
 
-
 bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 {
     DS_Dictionary GMDict;
@@ -775,7 +777,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     auto AM = AchievementManager::sharedState();
     bool oldDontNotify = AM->m_dontNotify;
     AM->m_dontNotify = true;
-    
+
     // & do whatever this is
     auto GSM = GameStatsManager::sharedState();
     bool oldSkipIncrementChallenge = GSM->m_skipIncrementChallenge;
@@ -880,7 +882,6 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 
     return true;
 }
-
 
 bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
 {
