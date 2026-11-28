@@ -560,7 +560,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
             if (zip.addFolder(GDriveConsts::auto_backups))
                 for (auto file : editorBackupDir.unwrap())
                 {
-                    if (!zip.addFrom(file, GDriveConsts::auto_backups))
+                    if (!zip.addFrom(file.makePreferred(), GDriveConsts::auto_backups))
                         backupRes = Err(fmt::format("Couldn't add this file to the zip: {}", file.c_str()));
                 }
             else
@@ -1109,7 +1109,7 @@ arc::Future<bool> GDriveManager::downloadSave(const int slot, web::WebRequest re
                 {
                     if (file.isFile())
                     {
-                        auto copyRes = asp::fs::copy(file, editorBackupsPath / *file.filename());
+                        auto copyRes = asp::fs::copy(file.makePreferred(), (editorBackupsPath / *file.filename()).makePreferred());
                         if (!copyRes && copyRes.err()->kind() != asp::fs::ErrorKind::AlreadyExists)
                         {
                             log::warn("couldnt copy this auto_backups file: {}", copyRes.err());

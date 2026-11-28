@@ -1,3 +1,6 @@
+# v1.4.2
+- fixed saving & loading auto_backups on windows
+
 # v1.4.1
 - fix windows crash
 - other bub fix
