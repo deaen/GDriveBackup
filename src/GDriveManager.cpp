@@ -484,6 +484,8 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
             auto keys = CCArray::create();
             for (auto [key, value] : CCDictionaryExt<std::string, CCString *>(values))
             {
+                if (!value)
+                    continue;
                 if (key.contains("gv_"))
                     keys->addObject(CCString::create(key));
             }
@@ -502,7 +504,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
             auto levels = GMDict.getDictForKey("GLM_03", false);
             for (auto [key, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levels))
             {
-                if (!level->isPlatformer())
+                if (!level || !level->isPlatformer())
                     continue;
 
                 level->m_platformerSave = "";
@@ -528,7 +530,7 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
             auto levels = LLMDict.getArrayForKey("LLM_01", false);
             for (auto level : CCArrayExt<GJGameLevel *>(levels))
             {
-                if (!level->isPlatformer())
+                if (!level || !level->isPlatformer())
                     continue;
 
                 level->m_platformerSave = "";
@@ -721,7 +723,6 @@ arc::Future<bool> GDriveManager::uploadSave(const int slot, web::WebRequest resp
     co_return true;
 }
 
-
 bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 {
     DS_Dictionary GMDict;
@@ -741,7 +742,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
 
     for (auto [key, level] : CCDictionaryExt<std::string_view, GJGameLevel *>(levels))
     {
-        if (level == nullptr)
+        if (!level)
             continue;
 
         // create stats string
@@ -775,7 +776,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     auto AM = AchievementManager::sharedState();
     bool oldDontNotify = AM->m_dontNotify;
     AM->m_dontNotify = true;
-    
+
     // & do whatever this is
     auto GSM = GameStatsManager::sharedState();
     bool oldSkipIncrementChallenge = GSM->m_skipIncrementChallenge;
@@ -796,6 +797,9 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     auto mapPacks = GameLevelManager::sharedState()->createAndGetMapPacks(packsString.data());
     for (auto pack : CCArrayExt<GJMapPack *>(mapPacks))
     {
+        if (!pack)
+            continue;
+
         if (pack->hasCompletedMapPack())
             GSM->completedMapPack(pack);
 
@@ -830,7 +834,7 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     {
         for (auto [key, value] : CCDictionaryExt<std::string_view, CCString *>(GMDict.getDictForKey("valueKeeper", false)))
         {
-            if (!key.contains("gv_"))
+            if (!value || !key.contains("gv_"))
                 continue;
 
             auto vint = value->intValue();
@@ -881,7 +885,6 @@ bool GDriveManager::loadGameManagerData(const std::string_view GMString)
     return true;
 }
 
-
 bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
 {
     auto llm = LocalLevelManager::sharedState();
@@ -895,7 +898,7 @@ bool GDriveManager::loadLocalLevelManagerData(const std::string_view LLMString)
         auto levels = LLMDict.getArrayForKey("LLM_01", false);
         for (auto level : CCArrayExt<GJGameLevel *>(levels))
         {
-            if (!level->isPlatformer())
+            if (!level || !level->isPlatformer())
                 continue;
 
             level->m_platformerSave = "";
@@ -1508,17 +1511,19 @@ arc::Future<std::string> GDriveManager::getEmail()
 
 void GDriveManager::updateQueue()
 {
-    if (!m_saveQueue.empty() && m_saveQueue.begin()->first)
-    {
-
+    if (!m_saveQueue.empty())
         saveData(m_saveQueue.begin()->first);
-    }
 }
 
-void GDriveManager::addToQueue(GDriveSlotBox *box)
+void GDriveManager::addToQueue(GDriveSlotBox *box, int slot)
 {
-    m_saveQueue.insert_or_assign(box->getSlot(), box);
-    if (m_saveQueue.begin()->first == box->getSlot())
+    if (box)
+        slot = box->getSlot();
+    else if (slot == -999)
+        return;
+
+        m_saveQueue.insert_or_assign(slot, box);
+    if (m_saveQueue.begin()->first == slot)
         updateQueue();
 }
 
@@ -1634,3 +1639,9 @@ geode::async::TaskHolder<std::string> *GDriveManager::getEmailListner()
 {
     return &m_emailListener;
 };
+
+void GDriveManager::checkForAutoBackup()
+{
+    Notification::create("GDrive Backup: Starting Auto Backup...", NotificationIcon::Loading, 3.f)->show();
+    addToQueue(nullptr, 0);
+}

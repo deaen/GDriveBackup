@@ -1,8 +1,9 @@
+#include "GDriveManager.hpp"
 #include "GDrivePopup.hpp"
+
 #include <Geode/Geode.hpp>
 #include <Geode/modify/AccountLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
-
 using namespace geode::prelude;
 
 struct GDriveMain
@@ -12,6 +13,35 @@ struct GDriveMain
         if (!Mod::get()->getSavedValue<bool>("new-user", false))
             Mod::get()->setSavedValue("shown-v1.4.1-popup", true);
         GDrivePopup::create();
+    }
+
+    static void checkScene(CCNode *node, bool isLayer = false)
+    {
+        if (!node)
+            return;
+
+        CCLayer *layer = nullptr;
+        if (isLayer)
+            layer = typeinfo_cast<CCLayer *>(node);
+        else if (auto scene = typeinfo_cast<CCTransitionScene *>(node); scene && scene->m_pInScene)
+            layer = scene->m_pInScene->getChildByType<CCLayer *>();
+
+        if (!layer)
+            return;
+
+        const std::string &id = layer->getID();
+        if (id.empty() || id == " " || id == "LevelEditorLayer" || id == "PlayLayer" || id == "LevelInfoLayer" || id == "EditLevelLayer")
+            return;
+
+        // temp
+        if (id != "SecretRewardsLayer")
+            return;
+         
+        // skip menulayer if its from a transitionscene
+        if (!isLayer && id == "MenuLayer")
+            return;
+
+        GDriveManager::getInstance()->checkForAutoBackup();
     }
 };
 
@@ -35,6 +65,7 @@ class $modify(MenuLayer)
             menu->updateLayout();
         }
 
+        GDriveMain::checkScene(this, true);
         return true;
     }
 };
@@ -95,4 +126,27 @@ class $modify(AccountLayer)
                 m_mainLayer->addChild(menu);
         }
     }
+};
+
+#include <Geode/modify/CCDirector.hpp>
+
+class $modify(CCDirector)
+{
+    $override bool replaceScene(CCScene *pScene)
+    {
+        if (!CCDirector::replaceScene(pScene))
+            return false;
+
+        GDriveMain::checkScene(pScene);
+        return true;
+    };
+
+    $override bool pushScene(CCScene *pScene)
+    {
+        if (!CCDirector::pushScene(pScene))
+            return false;
+
+        GDriveMain::checkScene(pScene);
+        return true;
+    };
 };

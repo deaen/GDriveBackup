@@ -12,17 +12,13 @@ using metadata_map = std::unordered_map<int, slotdata_map>;        // slot = [va
 class GDriveManager : public cocos2d::CCObject
 {
   public:
-    GDriveManager(GDriveManager const &) = delete;
-    void operator=(GDriveManager const &) = delete;
-    static GDriveManager *getInstance();
-
-    
     enum class Status
     {
         Idle,
         Waiting,
         Working
     };
+
     struct fileRevision
     {
         std::string id;
@@ -31,70 +27,71 @@ class GDriveManager : public cocos2d::CCObject
         bool keepForever;
     };
 
+    GDriveManager(const GDriveManager &) = delete;
+    GDriveManager &operator=(const GDriveManager &) = delete;
+    static GDriveManager *getInstance();
+
     void signin();
     void verify();
     void signout(bool openAgain);
-
-    void saveData(const int slot);
-    void loadMetadata(const int slot);
-    void loadData(const int slot);
-
-    arc::Future<std::optional<std::string>> findFolder(const std::string name, const bool findByaccountID, const std::string accountID = "", const std::string parentID = "");
-    arc::Future<std::optional<std::string>> createFolder(const std::string name, const std::string accountID = "", const std::string parentID = "");
-    arc::Future<bool> renameFolder(const std::string fileID, const std::string name, const std::string accountID);
-    arc::Future<std::optional<std::string>> getMainFolderID(const bool autoCreate = true);
-    arc::Future<std::optional<std::string>> getUserFolderID(const bool autoCreate = true);
-    arc::Future<bool> getMetadata();
-    arc::Future<bool> setDescription(const std::string description, const int slot);
-    arc::Future<bool> deleteFile(const int slot);
-    arc::Future<bool> uploadSave(const int slot, web::WebRequest responseReq);
-    bool loadGameManagerData(const std::string_view GMString);
-    bool loadLocalLevelManagerData(const std::string_view LLMString);
-    arc::Future<bool> downloadSave(const int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveConsts::slotType saveFileType = GDriveConsts::slotType::Old, ByteVector saveFile = {});
-    arc::Future<std::optional<sizedata_map>> getSizeInfo();
-
-    arc::Future<std::optional<std::pair<std::string, GDriveConsts::slotInformation>>> getFileID(const int slot, const bool autoCreateFolder, const std::string error = "", const std::string defparentID = "", bool visibleError = true);
-
-    arc::Future<std::vector<fileRevision>> getRevisionList(const int slot);
+    arc::Future<std::string> getEmail();
+    async::TaskHolder<std::string> *getEmailListner();
 
     void setCurrentPopup(GDrivePopup *popup);
-    void setCurrentSigninPopup(GDriveSigninPopup *signinPopup);
-
     GDrivePopup *getCurrentPopup();
+    void setCurrentSigninPopup(GDriveSigninPopup *signinPopup);
     GDriveSigninPopup *getCurrentSigninPopup();
 
-    arc::Future<std::string> getRefreshToken();
-    arc::Future<std::string> getAccessToken();
-    arc::Future<std::string> getEmail();
-
-    void showError(const std::string_view title = "GDriveBackup", const std::string_view error = "", bool invasive = true, const bool includeDefaultBody = true);
-
-    void addToQueue(GDriveSlotBox *box);
-    void removeFromQueue(const int slot);
-
+    void addToQueue(GDriveSlotBox *box, int slot = -999);
+    void removeFromQueue(int slot);
+    void removeBoxPointer(int slot);
+    void checkForAutoBackup();
     Status checkStatus(GDriveSlotBox *box);
-    void removeBoxPointer(const int slot);
 
+    void loadData(int slot);
+    arc::Future<bool> downloadSave(int slot, web::WebRequest responseReq, GDriveLoadLayer *loadLayer, GDriveConsts::slotType saveFileType = GDriveConsts::slotType::Old, ByteVector saveFile = {});
     size_t getSaveProgress();
     size_t getSaveTotal();
 
-    size_t getLoadProgress();
-    size_t getLoadTotal();
-
+    arc::Future<bool> getMetadata();
+    async::TaskHolder<bool> *getMetadataListner();
     bool getMetadataStatus();
     metadata_map *getMetadataMap();
-    void clearMetadata();
+    arc::Future<std::optional<sizedata_map>> getSizeInfo();
 
-    async::TaskHolder<bool> *getMetadataListner();
-    async::TaskHolder<std::string> *getEmailListner();
+    arc::Future<std::optional<std::pair<std::string, GDriveConsts::slotInformation>>> getFileID(int slot, bool autoCreateFolder, std::string error = "", std::string defparentID = "", bool visibleError = true);
+    arc::Future<bool> setDescription(std::string description, int slot);
+    arc::Future<bool> deleteFile(int slot);
 
-    std::string m_androidID;
+    void showError(std::string_view title = "GDriveBackup", std::string_view error = "", bool invasive = true, bool includeDefaultBody = true);
 
   private:
     GDriveManager();
 
     void updateQueue();
+
+    void saveData(int slot);
+    arc::Future<bool> uploadSave(int slot, web::WebRequest responseReq);
+    bool loadGameManagerData(std::string_view GMString);
+    bool loadLocalLevelManagerData(std::string_view LLMString);
+    size_t getLoadProgress();
+    size_t getLoadTotal();
+
     void setGettingMetadataStatus(bool status);
+    void clearMetadata();
+
+    arc::Future<std::optional<std::string>> findFolder(std::string name, bool findByaccountID, std::string accountID = "", std::string parentID = "");
+    arc::Future<std::optional<std::string>> createFolder(std::string name, std::string accountID = "", std::string parentID = "");
+    arc::Future<bool> renameFolder(std::string fileID, std::string name, std::string accountID);
+    arc::Future<std::optional<std::string>> getMainFolderID(bool autoCreate = true);
+    arc::Future<std::optional<std::string>> getUserFolderID(bool autoCreate = true);
+
+    arc::Future<std::vector<fileRevision>> getRevisionList(int slot);
+
+    arc::Future<std::string> getRefreshToken();
+    arc::Future<std::string> getAccessToken();
+
+    std::string m_androidID;
 
     GDrivePopup *m_currentPopup = nullptr;
     GDriveSigninPopup *m_currentSigninPopup = nullptr;
@@ -111,7 +108,7 @@ class GDriveManager : public cocos2d::CCObject
 
     size_t m_loadProgress = 0;
     size_t m_loadTotal = 0;
-    constexpr static size_t m_chunkSize = 256 * 1024 * 256;
+    static constexpr size_t m_chunkSize = 256 * 1024 * 256;
 
     metadata_map m_metadataMap;
     bool m_gettingMetadata = false;
