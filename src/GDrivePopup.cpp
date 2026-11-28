@@ -2,6 +2,7 @@
 #include "GDriveManager.hpp"
 #include "GDriveSigninPopup.hpp"
 #include "GDriveSizeInfoPopup.hpp"
+#include "GDriveBackupBox.hpp"
 #include <Geode/ui/GeodeUI.hpp>
 
 GDrivePopup *GDrivePopup::create()
@@ -85,6 +86,11 @@ bool GDrivePopup::init()
 
     nameRow->setLayout(RowLayout::create()->setAutoScale(false)->setAxisAlignment(AxisAlignment::Center)->setCrossAxisLineAlignment(AxisAlignment::End)->setGap(0.f));
     popupColumn->addChild(nameRow);
+
+    /* Backup Box */
+    auto backupBox = GDriveBackupBox::create();
+    if(backupBox)
+        popupColumn->addChild(backupBox);
 
     /* Slot Row */
     m_slotRow = CCNode::create();
